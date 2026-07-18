@@ -91,7 +91,7 @@ export function useAuth(): AuthState & { startStepUp: () => void } {
 
   const startStepUp = useCallback(() => {
     window.open(
-      `/auth/login?acr_values=${encodeURIComponent(STEP_UP_ACR)}&returnTo=${encodeURIComponent("/auth-complete")}`,
+      `/auth/login?connection=google-oauth2&acr_values=${encodeURIComponent(STEP_UP_ACR)}&returnTo=${encodeURIComponent("/auth-complete")}`,
       "innsight-mfa",
       "width=480,height=720",
     );
