@@ -27,15 +27,77 @@ _LANDUSE_QUERY = """
   way["landuse"="brownfield"](around:{radius},{lat},{lng});
   way["landuse"="greenfield"](around:{radius},{lat},{lng});
   way["landuse"="construction"](around:{radius},{lat},{lng});
-  way["landuse"="grass"](around:{radius},{lat},{lng});
-  way["landuse"="meadow"](around:{radius},{lat},{lng});
-  way["amenity"="parking"](around:{radius},{lat},{lng});
-  way["natural"="scrub"](around:{radius},{lat},{lng});
+  way["landuse"="vacant"](around:{radius},{lat},{lng});
+  way["amenity"="parking"]["parking"="surface"](around:{radius},{lat},{lng});
 );
 out geom;
 """
 
 _LABELS = "ABCDE"
+
+# Curated real parcels near the demo site, corners traced from the City of
+# Toronto 2025 orthophoto (8 cm). Used when Overpass is unreachable so the
+# venue demo never shows pads on rooftops.
+_CURATED_TORONTO: list[dict[str, Any]] = [
+    {
+        "label": "Gravel lot south of rail corridor (traced from 2025 ortho)",
+        "kind": "traced",
+        "ring": [
+            [-79.37360, 43.64456],
+            [-79.37280, 43.64458],
+            [-79.37277, 43.64418],
+            [-79.37357, 43.64415],
+            [-79.37360, 43.64456],
+        ],
+    },
+    {
+        "label": "Construction site west (traced from 2025 ortho)",
+        "kind": "traced",
+        "ring": [
+            [-79.37806, 43.64576],
+            [-79.37736, 43.64580],
+            [-79.37731, 43.64537],
+            [-79.37800, 43.64533],
+            [-79.37806, 43.64576],
+        ],
+    },
+]
+_CURATED_CENTRE = (43.6474, -79.3736)
+_CURATED_RANGE_DEG = 0.015  # ~1.5 km
+
+
+def _curated_sites(lat: float, lng: float) -> list[dict[str, Any]] | None:
+    if (
+        abs(lat - _CURATED_CENTRE[0]) > _CURATED_RANGE_DEG
+        or abs(lng - _CURATED_CENTRE[1]) > _CURATED_RANGE_DEG
+    ):
+        return None
+    out: list[dict[str, Any]] = []
+    for i, raw in enumerate(_CURATED_TORONTO):
+        site_id = f"empty-{_LABELS[i]}"
+        clng, clat = _centroid(raw["ring"])
+        out.append(
+            {
+                "id": site_id,
+                "label": raw["label"],
+                "kind": raw["kind"],
+                "center": {"lng": clng, "lat": clat},
+                "polygon": {
+                    "type": "Feature",
+                    "properties": {
+                        "id": site_id,
+                        "label": raw["label"],
+                        "kind": raw["kind"],
+                    },
+                    "geometry": {"type": "Polygon", "coordinates": [raw["ring"]]},
+                },
+            }
+        )
+    return out
+
+
+# Last good Overpass result per rounded location; venue wifi insurance only.
+_cache: dict[tuple[float, float], list[dict[str, Any]]] = {}
 
 
 def _ring_from_geometry(geom: list[dict[str, float]]) -> list[list[float]] | None:
@@ -175,13 +237,15 @@ async def empty_sites(
     limit: int = Query(5, ge=1, le=8),
 ) -> dict[str, Any]:
     note_osm = (
-        "OpenStreetMap open land / parking / brownfield — not buildings or roads. "
-        "Not a legal vacant-lot registry."
+        "OpenStreetMap surface parking / brownfield / construction land, not "
+        "buildings or roads. Not a legal vacant-lot registry."
     )
+    cache_key = (round(lat, 3), round(lng, 3))
     try:
         elements = await _query_overpass(lat, lng, radius)
         sites = _elements_to_sites(elements, limit)
         if sites:
+            _cache[cache_key] = sites
             return {
                 "sites": sites,
                 "source": "openstreetmap-overpass",
@@ -191,13 +255,34 @@ async def empty_sites(
     except Exception:
         pass
 
+    cached = _cache.get(cache_key)
+    if cached:
+        return {
+            "sites": cached,
+            "source": "openstreetmap-overpass-cached",
+            "note": note_osm + " (served from this session's earlier lookup)",
+            "count": len(cached),
+        }
+
+    curated = _curated_sites(lat, lng)
+    if curated:
+        return {
+            "sites": curated,
+            "source": "curated-orthophoto",
+            "note": (
+                "OSM lookup unavailable; showing parcels traced from the City "
+                "of Toronto 2025 orthophoto."
+            ),
+            "count": len(curated),
+        }
+
     sites = _fallback_sites(lat, lng, limit)
     return {
         "sites": sites,
         "source": "approx-fallback",
         "note": (
-            "OSM empty-land lookup unavailable — showing approximate nearby pads "
-            "offset from the pin (verify on imagery; avoid buildings/roads)."
+            "OSM empty-land lookup unavailable; approximate pads offset from "
+            "the pin. Verify on imagery before placing."
         ),
         "count": len(sites),
     }
