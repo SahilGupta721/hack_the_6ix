@@ -18,6 +18,8 @@ from innsight_model.sim import (
     run_option,
 )
 
+from app.stay22 import router as stay22_router
+
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 SITE_NAME = "45 The Esplanade"
@@ -31,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(stay22_router)
 
 
 class SimulateRequest(BaseModel):

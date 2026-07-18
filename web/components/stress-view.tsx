@@ -1,7 +1,9 @@
 "use client";
 
 import { LoadChart } from "@/components/load-chart";
+import { MarketPulse } from "@/components/market-pulse";
 import { StrainGauge } from "@/components/strain-gauge";
+import { FLAGS } from "@/lib/flags";
 import type { Comparison, OptionKey, OptionResult } from "@/lib/types";
 
 interface StressViewProps {
@@ -32,6 +34,11 @@ export function StressView({
           {memoReady ? "View memo" : "Preparing memo..."}
         </button>
       </div>
+      {FLAGS.stay22 && (
+        <div className="mb-2.5">
+          <MarketPulse />
+        </div>
+      )}
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
         <OptionColumn
           result={comparison.option_a}
