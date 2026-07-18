@@ -1,16 +1,18 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RailThumb } from "@/components/component-icons";
 import {
   DesignPanel,
   UI_TYPES,
   type UiBuildingType,
 } from "@/components/design-panel";
+import { Landing } from "@/components/landing";
 import { MemoView } from "@/components/memo-view";
 import { PhysicsLog } from "@/components/physics-log";
 import { ProfilesPanel } from "@/components/profiles-panel";
+import { SignInPrompt, type SignInReason } from "@/components/sign-in-prompt";
 import { StressView } from "@/components/stress-view";
 import { TopBar } from "@/components/top-bar";
 import { fetchComparison, fetchMemo, type OptionOverrides } from "@/lib/api";
@@ -22,6 +24,7 @@ import {
   type BuildComponents,
 } from "@/lib/build-config";
 import { FLAGS } from "@/lib/flags";
+import { useAuth } from "@/lib/use-auth";
 import type { BuildingType, Comparison, Memo, OptionKey } from "@/lib/types";
 
 const SiteMap = dynamic(
@@ -47,11 +50,17 @@ const UI_FLOORS: Record<UiBuildingType, number> = {
 };
 
 const SCENARIO = "heatwave_full";
+const ENTERED_KEY = "innsight-entered";
 
 type Overlay = "none" | "stress" | "memo" | "profiles";
 
 // Next.js App Router requires a default export for page files.
 export default function HomePage() {
+  const auth = useAuth();
+  const [entered, setEntered] = useState(false);
+  const [signIn, setSignIn] = useState<{ open: boolean; reason: SignInReason }>(
+    { open: false, reason: "start" },
+  );
   const [placed, setPlaced] = useState(false);
   const [uiType, setUiType] = useState<UiBuildingType>("hotel");
   const [rooms, setRooms] = useState(40);
@@ -65,6 +74,40 @@ export default function HomePage() {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const runToken = useRef(0);
+
+  const enterApp = useCallback(() => {
+    sessionStorage.setItem(ENTERED_KEY, "1");
+    setEntered(true);
+    setSignIn((s) => ({ ...s, open: false }));
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const wantsEnter = params.get("enter") === "1";
+    const wasEntered = sessionStorage.getItem(ENTERED_KEY) === "1";
+
+    if (wantsEnter) {
+      if (FLAGS.auth0 && auth.loading) return;
+      window.history.replaceState({}, "", "/");
+      if (!FLAGS.auth0 || auth.loggedIn) {
+        enterApp();
+        return;
+      }
+      setSignIn({ open: true, reason: "start" });
+      return;
+    }
+
+    if (wasEntered) setEntered(true);
+  }, [auth.loading, auth.loggedIn, enterApp]);
+
+  const handleGetStarted = useCallback(() => {
+    if (FLAGS.auth0 && auth.loading) return;
+    if (FLAGS.auth0 && !auth.loggedIn) {
+      setSignIn({ open: true, reason: "start" });
+      return;
+    }
+    enterApp();
+  }, [auth.loading, auth.loggedIn, enterApp]);
 
   const appendLog = useCallback((line: string) => {
     setLog((prev) => [...prev.slice(-9), line]);
@@ -125,6 +168,10 @@ export default function HomePage() {
   );
 
   const handleRunStressTest = useCallback(async () => {
+    if (FLAGS.auth0 && !auth.loggedIn) {
+      setSignIn({ open: true, reason: "stress" });
+      return;
+    }
     const token = ++runToken.current;
     setRunning(true);
     appendLog("Stress test: fully booked heat-wave weekend, 36.2 C peak...");
@@ -158,7 +205,7 @@ export default function HomePage() {
     } finally {
       if (runToken.current === token) setRunning(false);
     }
-  }, [appendLog, componentsByOption, rooms, uiType]);
+  }, [appendLog, auth.loggedIn, componentsByOption, rooms, uiType]);
 
   const explainMemo = useCallback(() => {
     if (!memo) {
@@ -190,6 +237,22 @@ export default function HomePage() {
   const logEntries = placed
     ? structureLog(activeComponents, UI_FLOORS[uiType], optionLabel)
     : [];
+
+  if (!entered) {
+    return (
+      <>
+        <Landing
+          onGetStarted={handleGetStarted}
+          busy={FLAGS.auth0 && auth.loading}
+        />
+        <SignInPrompt
+          open={signIn.open}
+          reason={signIn.reason}
+          onClose={() => setSignIn((s) => ({ ...s, open: false }))}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -241,7 +304,11 @@ export default function HomePage() {
             </div>
           )}
           {overlay === "memo" && memo && (
-            <MemoView memo={memo} onClose={() => setOverlay("stress")} />
+            <MemoView
+              memo={memo}
+              onClose={() => setOverlay("stress")}
+              onNeedSignIn={() => setSignIn({ open: true, reason: "export" })}
+            />
           )}
           {overlay === "profiles" && (
             <ProfilesPanel
@@ -285,6 +352,12 @@ export default function HomePage() {
           </button>
         </div>
       </div>
+
+      <SignInPrompt
+        open={signIn.open}
+        reason={signIn.reason}
+        onClose={() => setSignIn((s) => ({ ...s, open: false }))}
+      />
     </div>
   );
 }

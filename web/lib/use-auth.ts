@@ -9,6 +9,7 @@ const ROLES_CLAIM = "https://innsight.app/roles";
 
 export interface AuthState {
   enabled: boolean;
+  loading: boolean;
   loggedIn: boolean;
   name: string | null;
   role: string | null; // architect | investor
@@ -18,6 +19,7 @@ export interface AuthState {
 export function useAuth(): AuthState & { startStepUp: () => void } {
   const [state, setState] = useState<AuthState>({
     enabled: FLAGS.auth0,
+    loading: FLAGS.auth0,
     loggedIn: false,
     name: null,
     role: null,
@@ -32,10 +34,14 @@ export function useAuth(): AuthState & { startStepUp: () => void } {
     fetch("/auth/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((user: Record<string, unknown> | null) => {
-        if (!user) return;
+        if (!user) {
+          setState((s) => ({ ...s, loading: false }));
+          return;
+        }
         const roles = user[ROLES_CLAIM];
         setState((s) => ({
           ...s,
+          loading: false,
           loggedIn: true,
           name: typeof user.name === "string" ? user.name : null,
           role:
@@ -44,7 +50,9 @@ export function useAuth(): AuthState & { startStepUp: () => void } {
               : null,
         }));
       })
-      .catch(() => undefined);
+      .catch(() => {
+        setState((s) => ({ ...s, loading: false }));
+      });
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === MFA_KEY && e.newValue === "1") {

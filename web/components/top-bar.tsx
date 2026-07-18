@@ -1,6 +1,7 @@
 "use client";
 
 import { SITE } from "@/lib/site";
+import { loginHref, logoutHref } from "@/lib/auth0-shared";
 import { useAuth } from "@/lib/use-auth";
 
 export function TopBar() {
@@ -18,20 +19,28 @@ export function TopBar() {
       <div className="ml-auto flex items-center gap-3 text-white/60">
         {auth.enabled &&
           (auth.loggedIn ? (
-            <span className="rounded bg-ink-raised px-2 py-1 text-[11px]">
-              {auth.name ?? "Signed in"}
-              {auth.role && (
-                <span className="ml-1.5 rounded bg-accent/20 px-1 py-px text-[9px] font-bold uppercase text-accent">
-                  {auth.role}
-                </span>
-              )}
-            </span>
+            <>
+              <span className="rounded bg-ink-raised px-2 py-1 text-[11px]">
+                {auth.name ?? "Signed in"}
+                {auth.role && (
+                  <span className="ml-1.5 rounded bg-accent/20 px-1 py-px text-[9px] font-bold uppercase text-accent">
+                    {auth.role}
+                  </span>
+                )}
+              </span>
+              <a
+                href={logoutHref}
+                className="rounded border border-ink-border px-2 py-1 text-[11px] hover:bg-ink-raised"
+              >
+                Log out
+              </a>
+            </>
           ) : (
             <a
-              href="/auth/login"
+              href={loginHref()}
               className="rounded border border-ink-border px-2 py-1 text-[11px] hover:bg-ink-raised"
             >
-              Log in
+              Sign in with Google
             </a>
           ))}
         <span
@@ -44,7 +53,14 @@ export function TopBar() {
           className="grid h-7 w-7 place-items-center rounded-full bg-ink-raised text-xs"
           title="Account"
         >
-          MA
+          {auth.loggedIn && auth.name
+            ? auth.name
+                .split(/\s+/)
+                .map((p) => p[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()
+            : "MA"}
         </span>
       </div>
     </header>

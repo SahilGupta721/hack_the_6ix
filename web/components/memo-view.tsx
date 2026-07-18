@@ -6,6 +6,7 @@ import type { Memo, MemoOption } from "@/lib/types";
 interface MemoViewProps {
   memo: Memo;
   onClose: () => void;
+  onNeedSignIn?: () => void;
 }
 
 function money(v: number): string {
@@ -21,9 +22,29 @@ function Sup({ refs }: { refs: number[] }) {
   );
 }
 
-export function MemoView({ memo, onClose }: MemoViewProps) {
+export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
   const auth = useAuth();
-  const exportGated = auth.enabled && !auth.mfaVerified;
+  const needsLogin = auth.enabled && !auth.loggedIn;
+  const needsMfa = auth.enabled && auth.loggedIn && !auth.mfaVerified;
+
+  const exportLabel = needsLogin
+    ? "Sign in to export"
+    : needsMfa
+      ? "Verify identity to export (MFA)"
+      : "Export / print";
+
+  const handleExport = () => {
+    if (needsLogin) {
+      onNeedSignIn?.();
+      return;
+    }
+    if (needsMfa) {
+      auth.startStepUp();
+      return;
+    }
+    window.print();
+  };
+
   return (
     <div className="pointer-events-auto absolute inset-0 z-20 overflow-y-auto bg-[#0b1420]/70 p-5 backdrop-blur-sm print:overflow-visible print:bg-white print:p-0">
       <div
@@ -39,12 +60,10 @@ export function MemoView({ memo, onClose }: MemoViewProps) {
               </span>
             )}
             <button
-              onClick={() =>
-                exportGated ? auth.startStepUp() : window.print()
-              }
+              onClick={handleExport}
               className="rounded border border-panel-border px-3 py-1.5 text-[12px] font-semibold hover:bg-panel-muted"
             >
-              {exportGated ? "Verify identity to export (MFA)" : "Export / print"}
+              {exportLabel}
             </button>
             <button
               onClick={onClose}
