@@ -99,6 +99,30 @@ def _curated_sites(lat: float, lng: float) -> list[dict[str, Any]] | None:
 # Last good Overpass result per rounded location; venue wifi insurance only.
 _cache: dict[tuple[float, float], list[dict[str, Any]]] = {}
 
+_BUILDINGS_QUERY = """
+[out:json][timeout:18];
+way["building"](around:{radius},{lat},{lng});
+out geom;
+"""
+
+_context_cache: dict[tuple[float, float], dict[str, Any]] = {}
+
+
+def _building_height(tags: dict[str, Any]) -> float:
+    raw_height = tags.get("height")
+    if raw_height:
+        try:
+            return max(3.0, min(140.0, float(str(raw_height).split()[0])))
+        except ValueError:
+            pass
+    levels = tags.get("building:levels")
+    if levels:
+        try:
+            return max(3.0, min(140.0, float(levels) * 3.2))
+        except ValueError:
+            pass
+    return 10.0
+
 
 def _ring_from_geometry(geom: list[dict[str, float]]) -> list[list[float]] | None:
     if not geom or len(geom) < 3:
@@ -227,6 +251,66 @@ async def _query_overpass(lat: float, lng: float, radius: int) -> list[dict[str,
     if last_err:
         raise last_err
     return []
+
+
+@router.get("/sites/context")
+async def context_buildings(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    radius: int = Query(450, ge=100, le=900),
+    limit: int = Query(400, ge=10, le=800),
+) -> dict[str, Any]:
+    """Neighbouring OSM building footprints with heights, for the 3D context
+    layer. Empty collection on failure; the map simply renders without it."""
+    cache_key = (round(lat, 3), round(lng, 3))
+    cached = _context_cache.get(cache_key)
+    if cached:
+        return cached
+
+    features: list[dict[str, Any]] = []
+    try:
+        query = _BUILDINGS_QUERY.format(lat=lat, lng=lng, radius=radius)
+        async with httpx.AsyncClient(timeout=22.0) as client:
+            for url in OVERPASS_URLS:
+                try:
+                    res = await client.post(
+                        url,
+                        data={"data": query},
+                        headers={"User-Agent": USER_AGENT},
+                    )
+                    if res.status_code != 200:
+                        continue
+                    elements = list((res.json() or {}).get("elements") or [])
+                    for el in elements[:limit]:
+                        ring = _ring_from_geometry(el.get("geometry") or [])
+                        if not ring:
+                            continue
+                        features.append(
+                            {
+                                "type": "Feature",
+                                "properties": {
+                                    "height": _building_height(el.get("tags") or {}),
+                                },
+                                "geometry": {
+                                    "type": "Polygon",
+                                    "coordinates": [ring],
+                                },
+                            }
+                        )
+                    break
+                except Exception:
+                    continue
+    except Exception:
+        features = []
+
+    payload = {
+        "type": "FeatureCollection",
+        "features": features,
+        "source": "openstreetmap" if features else "unavailable",
+    }
+    if features:
+        _context_cache[cache_key] = payload
+    return payload
 
 
 @router.get("/sites/empty")

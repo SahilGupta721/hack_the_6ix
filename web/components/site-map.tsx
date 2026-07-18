@@ -128,6 +128,23 @@ export function SiteMap({
         data: insetPolygon(activeSite.polygon, 0.72),
       });
 
+      map.addSource("context-buildings", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "context-buildings",
+        type: "fill-extrusion",
+        source: "context-buildings",
+        paint: {
+          "fill-extrusion-color": "#d7dce2",
+          "fill-extrusion-height": ["get", "height"],
+          "fill-extrusion-opacity": 0.42,
+          "fill-extrusion-vertical-gradient": true,
+        },
+      });
+      void loadContextBuildings(map, activeSite.lat, activeSite.lng);
+
       map.addLayer({
         id: "candidates-fill",
         type: "fill",
@@ -290,6 +307,27 @@ function LayersIcon() {
       />
     </svg>
   );
+}
+
+async function loadContextBuildings(
+  map: maplibregl.Map,
+  lat: number,
+  lng: number,
+) {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+    const res = await fetch(
+      `${base}/sites/context?lat=${lat}&lng=${lng}&radius=450`,
+    );
+    if (!res.ok) return;
+    const data = (await res.json()) as GeoJSON.FeatureCollection;
+    const src = map.getSource(
+      "context-buildings",
+    ) as maplibregl.GeoJSONSource | undefined;
+    src?.setData(data);
+  } catch {
+    // Context layer is decorative; the map is complete without it.
+  }
 }
 
 function syncBuilding(map: maplibregl.Map, building: BuildingSpec | null) {
