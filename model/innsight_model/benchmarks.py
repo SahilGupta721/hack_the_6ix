@@ -95,7 +95,7 @@ EUI_TYPE_FACTOR = {
         "eui_factor_tower",
         1.00,
         "multiplier on CBECS hotel mean",
-        "",
+        "https://www.eia.gov/consumption/commercial/data/2018/ce/pdf/c22.pdf",
         "CBECS hotel means are dominated by larger properties; tower uses the "
         "mean directly.",
     ),
@@ -405,8 +405,9 @@ STRUCTURE_COST_FACTOR = {
         "cost_factor_concrete",
         1.00,
         "multiplier",
-        "",
-        "Baseline structural system.",
+        "https://www.altusgroup.com/featured-insights/canadian-cost-guide/",
+        "Baseline structural system; the Altus hotel bands assume conventional "
+        "concrete construction.",
     ),
     "mass_timber": _b(
         "cost_factor_mass_timber",

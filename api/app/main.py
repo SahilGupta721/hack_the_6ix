@@ -1,5 +1,8 @@
+import os
 from dataclasses import asdict
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -7,12 +10,17 @@ from pydantic import BaseModel, Field
 from innsight_model import MODEL_VERSION
 from innsight_model.benchmarks import all_benchmarks
 from innsight_model.load_profiles import PROFILES
+from innsight_model.memo import build_memo, generate_narrative
 from innsight_model.sim import (
     SCENARIOS,
     BuildingConfig,
     compare,
     run_option,
 )
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
+SITE_NAME = "45 The Esplanade"
 
 app = FastAPI(title="INNSIGHT API", version=MODEL_VERSION)
 
@@ -93,6 +101,28 @@ def simulate(req: SimulateRequest) -> dict[str, object]:
     payload = asdict(result)
     payload["config"] = asdict(result.config)
     return payload
+
+
+@app.post("/memo")
+def memo(req: CompareRequest) -> dict[str, object]:
+    config_a = BuildingConfig(
+        req.building_type, req.rooms, req.structure_a, req.hvac_a,
+        "Option A: Concrete + Central HVAC"
+        if req.structure_a == "concrete" and req.hvac_a == "central_gas"
+        else f"Option A: {req.structure_a} + {req.hvac_a}",
+    )
+    config_b = BuildingConfig(
+        req.building_type, req.rooms, req.structure_b, req.hvac_b,
+        "Option B: Mass Timber + Heat Pumps"
+        if req.structure_b == "mass_timber" and req.hvac_b == "heat_pump"
+        else f"Option B: {req.structure_b} + {req.hvac_b}",
+    )
+    comparison = compare(config_a, config_b, _scenario(req.scenario))
+    memo_data = build_memo(comparison, SITE_NAME)
+    memo_data["narrative"] = generate_narrative(
+        memo_data, os.environ.get("GEMINI_API_KEY") or None
+    )
+    return memo_data
 
 
 @app.post("/compare")
