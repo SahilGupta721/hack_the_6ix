@@ -1,0 +1,55 @@
+# deps / builds
+node_modules/
+.next/
+out/
+dist/
+build/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# env (template stays committable)
+.env
+.env.*
+!.env.example
+
+# internal docs, never public
+PRD*.md
+SYNC.md
+MOCKS.md
+DECISIONS.md
+HANDOFF.md
+NOTES.md
+TODO.md
+SESSION_NOTES.md
+CLAUDE_NOTES.md
+ROADMAP.md
+DEMO_SCRIPT.md
+DEVPOST_SUBMISSION.md
+TECHNICAL_ARCHITECTURE.md
+ARCHITECTURE.md
+docs/
+
+# agent/tooling files, never public
+CLAUDE.md
+COWORK*.md
+AGENTS.md
+.cursorrules
+.windsurfrules
+.claude/
+.cowork/
+
+# internal reference material
+imgs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
