@@ -20,7 +20,7 @@ export function PhysicsLog({ entries, runtimeLines }: PhysicsLogProps) {
             <p
               className={`text-[12px] leading-snug ${
                 entry.kind === "warning"
-                  ? "font-medium text-[#8a5a00]"
+                  ? "font-medium text-[#A35A52]"
                   : "text-text-strong"
               }`}
             >

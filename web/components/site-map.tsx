@@ -122,6 +122,19 @@ export function SiteMap({ building }: SiteMapProps) {
           "fill-extrusion-opacity": 0.92,
         },
       });
+      // Unconfigured upper envelope: translucent white shell above the
+      // configured structure, matching the ref sketch treatment.
+      map.addLayer({
+        id: "building-shell",
+        type: "fill-extrusion",
+        source: "building",
+        paint: {
+          "fill-extrusion-color": "#ffffff",
+          "fill-extrusion-height": 0,
+          "fill-extrusion-base": 0,
+          "fill-extrusion-opacity": 0.38,
+        },
+      });
       readyRef.current = true;
       syncBuilding(map, buildingRef.current);
     });
@@ -149,7 +162,7 @@ export function SiteMap({ building }: SiteMapProps) {
       >
         <LayersIcon />
       </button>
-      <div className="pointer-events-none absolute left-1/2 top-12 -translate-x-1/2 rounded bg-white/90 px-2.5 py-1 text-[11px] font-medium text-text-strong shadow">
+      <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded bg-white/90 px-2.5 py-1 text-[11px] font-medium text-text-strong shadow">
         SITE: {SITE.name}
       </div>
     </div>
@@ -210,9 +223,12 @@ function LayersIcon() {
 }
 
 function syncBuilding(map: maplibregl.Map, building: BuildingSpec | null) {
-  if (!map.getLayer("building-mass")) return;
-  const height = building ? building.floors * 3.4 : 0;
+  if (!map.getLayer("building-mass") || !map.getLayer("building-shell")) return;
+  const total = building ? building.floors * 3.4 : 0;
+  const lower = total * 0.55;
   const colour = building ? STRUCTURE_COLOUR[building.structure] : "#9aa5b1";
-  map.setPaintProperty("building-mass", "fill-extrusion-height", height);
+  map.setPaintProperty("building-mass", "fill-extrusion-height", lower);
   map.setPaintProperty("building-mass", "fill-extrusion-color", colour);
+  map.setPaintProperty("building-shell", "fill-extrusion-base", lower);
+  map.setPaintProperty("building-shell", "fill-extrusion-height", total);
 }

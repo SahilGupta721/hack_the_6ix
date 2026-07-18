@@ -29,7 +29,7 @@ Copy `.env.example` values into `api/.env` and `web/.env.local`. Every integrati
 
 ![Demo](web/public/demo.gif)
 
-Place the building, toggle concrete + central HVAC against mass timber + heat pumps, stress-test a fully booked heat-wave weekend (36.2 C, the documented July 14, 2026 Toronto event), and read the memo. For the 40-room boutique the flip to Option B costs $159 per tonne of CO2e avoided over the RICS 60-year life, under Canada's $170 federal 2030 benchmark; for a 6-room homestay the same swap fails the bar at $358 per tonne and the memo honestly recommends Option A. That flip is enforced by a pytest.
+Assemble the building component by component (foundation, structure, floors, facade, energy systems) on the City of Toronto's 8 cm aerial imagery, toggle concrete + central HVAC against mass timber + heat pumps, stress-test a fully booked heat-wave weekend (36.2 C, the documented July 14, 2026 Toronto event), and read the memo. A physics and structure log narrates each configuration choice. For the 40-room boutique the flip to Option B costs $159 per tonne of CO2e avoided over the RICS 60-year life, under Canada's $170 federal 2030 benchmark; for a 6-room homestay the same swap fails the bar at $358 per tonne and the memo honestly recommends Option A. That flip is enforced by a pytest.
 
 ## Real vs Simulated ledger
 

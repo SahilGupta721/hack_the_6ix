@@ -118,7 +118,7 @@ export function DesignPanel({
   }
 
   return (
-    <div className="pointer-events-auto absolute left-16 top-14 z-10 flex max-h-[calc(100%-5.5rem)] w-[276px] flex-col rounded-lg bg-panel shadow-xl">
+    <div className="pointer-events-auto absolute bottom-0 left-12 top-[30px] z-10 flex w-[276px] flex-col border-r border-panel-border bg-panel shadow-md">
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="flex items-center justify-between border-b border-panel-border px-3.5 py-2.5"
@@ -154,7 +154,7 @@ export function DesignPanel({
                   title={t.blurb}
                   className={`flex flex-col items-center gap-1 rounded-md border px-1 py-2 ${
                     uiType === t.key
-                      ? "border-[#3b82f6] bg-[#eaf2fe]"
+                      ? "border-[#5B9BD5] bg-[#EAF4FB]"
                       : "border-panel-border hover:bg-panel-muted"
                   }`}
                 >
@@ -178,7 +178,7 @@ export function DesignPanel({
                 max={uiType === "hotel" ? 80 : 16}
                 value={rooms}
                 onChange={(e) => onRoomsChange(Number(e.target.value))}
-                className="mt-0.5 w-full accent-[#3b82f6]"
+                className="mt-0.5 w-full accent-[#5B9BD5]"
               />
             </div>
           </div>
@@ -228,7 +228,7 @@ export function DesignPanel({
                             onClick={() => onComponentChange(section.field, value)}
                             className={`flex flex-col items-center gap-1 rounded-md border px-1 py-1.5 ${
                               components[section.field] === value
-                                ? "border-[#3b82f6] bg-[#eaf2fe]"
+                                ? "border-[#5B9BD5] bg-[#EAF4FB]"
                                 : "border-panel-border hover:bg-panel-muted"
                             }`}
                           >
@@ -283,7 +283,7 @@ function PresetButton({
       onClick={onClick}
       className={`rounded-md border px-2 py-1.5 text-left ${
         active
-          ? "border-[#3b82f6] bg-[#eaf2fe]"
+          ? "border-[#5B9BD5] bg-[#EAF4FB]"
           : "border-panel-border hover:bg-panel-muted"
       }`}
     >

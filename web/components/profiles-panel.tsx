@@ -61,7 +61,7 @@ export function ProfilesPanel({ buildingType, onClose }: ProfilesPanelProps) {
           <div className="grid grid-cols-2 gap-3">
             <LoadChart
               title="Generic Commercial Office Load (Smooth Arch)"
-              colour="#f5c518"
+              colour="#e4d659"
               series={OFFICE_ARCH.map((kw, hour) => ({ hour, kw }))}
               height={230}
             />
@@ -74,7 +74,7 @@ export function ProfilesPanel({ buildingType, onClose }: ProfilesPanelProps) {
                       ? "Spiky, Cyclical"
                       : "Smooth, Base-Load Heavy"
                 })`}
-                colour="#f5c518"
+                colour="#e4d659"
                 series={profile.hourly_shape.map((kw, hour) => ({ hour, kw }))}
                 height={230}
               />
@@ -110,7 +110,7 @@ export function ProfilesPanel({ buildingType, onClose }: ProfilesPanelProps) {
         <aside className="w-64 shrink-0 border-l border-panel-border bg-panel p-4">
           <h3 className="text-[14px] font-semibold">Energy Load Profiles</h3>
           <p className="mt-2 text-[11px] text-text-soft">Selected profile:</p>
-          <div className="mt-1.5 space-y-1.5 rounded-md border-2 border-[#3b82f6] p-2.5">
+          <div className="mt-1.5 space-y-1.5 rounded-md border-2 border-[#2E86AB] p-2.5">
             {profiles &&
               (Object.keys(profiles) as BuildingType[]).map((key) => (
                 <label
@@ -122,7 +122,7 @@ export function ProfilesPanel({ buildingType, onClose }: ProfilesPanelProps) {
                     name="profile"
                     checked={selected === key}
                     onChange={() => setSelected(key)}
-                    className="accent-[#3b82f6]"
+                    className="accent-[#5B9BD5]"
                   />
                   {profiles[key].label}
                 </label>

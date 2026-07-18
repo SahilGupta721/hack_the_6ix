@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #14181f;
-  --color-ink-raised: #1c222c;
-  --color-ink-border: #2c3442;
+  --color-ink: #1f2c35;
+  --color-ink-raised: #2a3945;
+  --color-ink-border: #354552;
   --color-panel: #ffffff;
   --color-panel-border: #e2e6ec;
   --color-panel-muted: #f4f6f9;
-  --color-chart-navy: #0d2b45;
+  --color-chart-navy: #123346;
   --color-chart-navy-deep: #092036;
   --color-accent: #f5c518;
   --color-alert: #e5484d;
