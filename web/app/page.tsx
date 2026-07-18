@@ -49,6 +49,7 @@ export default function HomePage() {
   }, []);
 
   const invalidate = useCallback(() => {
+    runToken.current += 1; // discard any in-flight run for the old parameters
     setComparison(null);
     setMemo(null);
     if (overlay === "stress" || overlay === "memo") setOverlay("none");
@@ -171,7 +172,7 @@ export default function HomePage() {
 
         <main className="relative min-w-0 flex-1">
           <SiteMap building={building} />
-          {overlay === "stress" && comparison && (
+          {(overlay === "stress" || overlay === "memo") && comparison && (
             <div className="absolute inset-0 z-10">
               <StressView
                 comparison={comparison}

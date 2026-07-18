@@ -79,6 +79,7 @@ export function DesignPanel({
                   type="radio"
                   name="building-type"
                   checked={buildingType === t.key}
+                  disabled={running}
                   onChange={() => onTypeChange(t.key, t.rooms)}
                   className="accent-[#14181f]"
                 />
@@ -96,6 +97,7 @@ export function DesignPanel({
             <input
               id="rooms-slider"
               type="range"
+              disabled={running}
               min={buildingType === "homestay" ? 2 : buildingType === "boutique" ? 10 : 100}
               max={buildingType === "homestay" ? 12 : buildingType === "boutique" ? 80 : 400}
               value={rooms}

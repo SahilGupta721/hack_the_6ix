@@ -2,6 +2,7 @@
 
 import { LoadChart } from "@/components/load-chart";
 import { MarketPulse } from "@/components/market-pulse";
+import { PixelViewport } from "@/components/pixel-viewport";
 import { RenderPanel } from "@/components/render-panel";
 import { StrainGauge } from "@/components/strain-gauge";
 import { FLAGS } from "@/lib/flags";
@@ -97,6 +98,16 @@ function OptionColumn({
         strainClass={result.strain_class}
         peakKw={result.peak_kw}
       />
+      {FLAGS.pixel && (
+        <PixelViewport
+          hourlyKw={result.hourly_kw}
+          peakKw={result.peak_kw}
+          occupancy={1.0}
+          strainClass={result.strain_class}
+          rooms={result.config.rooms}
+          colour={colour}
+        />
+      )}
       <div className="w-full">
         <LoadChart
           title="Hospitality load, 48h stress window (kW)"

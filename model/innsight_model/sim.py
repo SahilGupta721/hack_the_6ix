@@ -372,9 +372,16 @@ def compare(
     else:
         abatement = net_premium / lifetime_tonnes
 
-    recommended = greener if abatement is not None and abatement <= threshold else (
-        "A" if greener == "B" else "B"
-    )
+    if abatement is None:
+        # No emissions difference to fund: recommend the cheaper option.
+        if capex_delta != 0:
+            recommended = "A" if capex_delta > 0 else "B"
+        else:
+            recommended = "A" if annual_delta <= 0 else "B"
+    elif abatement <= threshold:
+        recommended = greener
+    else:
+        recommended = "A" if greener == "B" else "B"
 
     reasoning: list[str] = [
         f"Capex: A ${ra.construction_cost:,.0f} vs B ${rb.construction_cost:,.0f} "

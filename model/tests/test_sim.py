@@ -79,6 +79,16 @@ def test_option_b_is_cleaner_and_calmer() -> None:
     assert rb.annual_gas_m3 == 0.0
 
 
+def test_identical_options_recommend_cheaper_not_arbitrary() -> None:
+    """A tie in emissions must not invent a winner on the greener axis."""
+    a = BuildingConfig("boutique", 40, "concrete", "central_gas", "Option A: same")
+    b = BuildingConfig("boutique", 40, "concrete", "central_gas", "Option B: same")
+    result = compare(a, b, HEATWAVE)
+    assert result.tco2e_delta == 0.0
+    assert result.capex_delta == 0.0
+    assert result.recommended == "A"  # equal cost falls back to A, not B
+
+
 def test_config_validation() -> None:
     import pytest
 

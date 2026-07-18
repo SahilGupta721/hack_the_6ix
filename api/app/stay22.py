@@ -47,17 +47,18 @@ async def _search(client: httpx.AsyncClient, checkin: date, checkout: date) -> d
 
 
 def _summarize(payload: dict[str, Any]) -> dict[str, Any]:
+    results = payload.get("results") or []
     prices: list[float] = []
-    for item in payload.get("results", []):
+    for item in results:
         supplier_prices = [
             s["price"]["total"]
-            for s in item.get("suppliers", {}).values()
-            if isinstance(s, dict) and s.get("price", {}).get("total")
+            for s in (item.get("suppliers") or {}).values()
+            if isinstance(s, dict) and (s.get("price") or {}).get("total")
         ]
         if supplier_prices:
             prices.append(min(supplier_prices))
     return {
-        "properties": len(payload.get("results", [])),
+        "properties": len(results),
         "priced": len(prices),
         "median_rate": round(statistics.median(prices), 0) if prices else None,
         "min_rate": round(min(prices), 0) if prices else None,
@@ -98,7 +99,7 @@ async def market(checkin: str | None = None) -> dict[str, Any]:
         }
         _last_success = result
         return result
-    except (httpx.HTTPError, KeyError, ValueError) as exc:
+    except Exception as exc:  # any upstream shape surprise falls back, never 500s
         if _last_success is not None:
             return {**_last_success, "source": "cached", "note": (
                 "Live pull failed; serving this session's earlier pull. "
