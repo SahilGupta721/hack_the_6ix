@@ -15,6 +15,7 @@ if str(API_ROOT) not in sys.path:
 
 from app.agents.llm import DeterministicFallbackProvider
 from app.agents.orchestrator import ALL_AGENT_IDS, run_briefing, run_year_briefing
+from innsight_model.sim import SCENARIOS
 
 
 @pytest.fixture
@@ -58,6 +59,20 @@ def test_fallback_briefing_has_all_specialists_and_boss() -> None:
             patch(
                 "app.agents.gather.fetch_electricity_maps",
                 new=AsyncMock(return_value=grid_stub),
+            ),
+            patch(
+                "app.agents.orchestrator.fetch_location_year_scenarios",
+                new=AsyncMock(
+                    return_value={
+                        "scenarios": dict(SCENARIOS),
+                        "meta": {
+                            "source": "Curated Toronto demo pack (test)",
+                            "fallback": True,
+                            "heatwave_peak_c": 36.2,
+                            "deep_cold_floor_c": -22.0,
+                        },
+                    }
+                ),
             ),
         ):
             return await run_briefing(
@@ -112,6 +127,20 @@ def test_include_agents_subset() -> None:
                 "app.agents.gather.fetch_electricity_maps",
                 new=AsyncMock(return_value=grid_stub),
             ),
+            patch(
+                "app.agents.orchestrator.fetch_location_year_scenarios",
+                new=AsyncMock(
+                    return_value={
+                        "scenarios": dict(SCENARIOS),
+                        "meta": {
+                            "source": "Curated Toronto demo pack (test)",
+                            "fallback": True,
+                            "heatwave_peak_c": 36.2,
+                            "deep_cold_floor_c": -22.0,
+                        },
+                    }
+                ),
+            ),
         ):
             return await run_briefing(
                 building_type="homestay",
@@ -153,6 +182,14 @@ def test_year_pack_fallback() -> None:
     }
 
     async def _run():
+        climate_meta = {
+            "source": "Curated Toronto demo pack (test)",
+            "fallback": True,
+            "heatwave_peak_c": 36.2,
+            "deep_cold_floor_c": -22.0,
+            "lat": 43.65,
+            "lng": -79.38,
+        }
         with (
             patch(
                 "app.agents.gather.fetch_stay22_market",
@@ -162,16 +199,30 @@ def test_year_pack_fallback() -> None:
                 "app.agents.gather.fetch_electricity_maps",
                 new=AsyncMock(return_value=grid_stub),
             ),
+            patch(
+                "app.agents.orchestrator.fetch_location_year_scenarios",
+                new=AsyncMock(
+                    return_value={
+                        "scenarios": dict(SCENARIOS),
+                        "meta": climate_meta,
+                    }
+                ),
+            ),
         ):
             return await run_year_briefing(
                 building_type="boutique",
                 rooms=40,
                 provider=DeterministicFallbackProvider(),
+                lat=43.65,
+                lng=-79.38,
+                site_name="Test Site",
             )
 
     result = asyncio.run(_run())
 
     assert result.generator == "deterministic-fallback"
+    assert result.climate is not None
+    assert result.climate["source"] == "benchmark"
     assert set(result.scenarios.keys()) == {
         "heatwave_full",
         "summer_shoulder",
@@ -189,6 +240,7 @@ def test_year_pack_fallback() -> None:
     assert result.memo["portfolio_table"][0].get("hourly_kw_a")
     assert result.memo["portfolio_table"][0].get("hourly_kw_b")
     assert "environmental_summary" in result.memo
+    assert result.memo["environmental_summary"].get("climate")
     assert "narrative" in result.memo
     assert result.comparison["recommended"] in ("A", "B")
 

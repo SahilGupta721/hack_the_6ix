@@ -40,10 +40,12 @@ Honesty first: this table says exactly what is real and what is a labelled simul
 | Benchmark constants (52: energy intensity, rates, carbon factors, costs) | Real published values (CBECS 2018 tables, Toronto Hydro and Enbridge 2026 rate schedules, TAF emissions guidance, Altus 2025 cost guide, RICS WLCA); every constant in `model/innsight_model/benchmarks.py` carries a source URL or an ESTIMATE flag with its derivation |
 | Stress-test engine | Real deterministic model on those constants; 14 pytest including determinism and the homestay/hotel recommendation flip |
 | Hourly load curves | Generated from published load-profile behaviour; in-app validation overlay against a metered hotel study (Placet et al. 2010) |
-| Stay22 market pulse | Real live demo-mode API calls, forward dates, no listing storage; cache fallback disclosed in-UI |
+| Stay22 market pulse | Real live demo-mode API calls at the selected parcel lat/lng, forward dates, no listing storage; cache fallback disclosed in-UI |
+| Electricity Maps carbon | Live zone intensity when `ELECTRICITYMAPS_API_KEY` is set (lat/lon then CA-ON fallback); else TAF Ontario benchmarks |
+| Open-Meteo climate curves | Archive hourly temps at the pin → five named extreme 48h weekends for year-pack sim; Toronto fixed curves if unreachable; **not** 8760h |
 | Multi-agent briefing | Specialists (market, environment, neighbourhood, green ratio, friction, compliance) + boss; Gemini structured JSON when keyed, deterministic stubs otherwise; sim remains source of truth for A/B numbers |
-| Year-pack parallel stress | One action runs all five extreme weekends in parallel (deterministic sim matrix); shared Stay22/env gather; ~8 Gemini calls total (6 specialists + year boss + one portfolio memo), not 5× full briefing; **not** a true 8760h weather year |
-| Seasonal stress scenarios | Named extreme weekends across the year (heat-wave, summer shoulder, typical July, typical winter, deep cold); 48h peak curves with heating + cooling; annual energy still CBECS averages, not 8760h weather |
+| Year-pack parallel stress | One action runs all five extreme weekends in parallel (deterministic sim matrix, location climate when live); shared Stay22/env gather; ~8 Gemini calls total (6 specialists + year boss + one portfolio memo), not 5× full briefing |
+| Seasonal stress scenarios | Named extreme weekends (heat-wave, summer shoulder, typical July, typical winter, deep cold); 48h peak curves with heating + cooling; annual energy still CBECS averages, not 8760h weather |
 | Per-user past runs | Mongo `memo_runs` metadata when Auth0 signed in (scenario, recommendation, generators, honesty note; `kind=year_pack` for year runs); no Stay22 listings; JWT verification still a follow-up |
 | Memo narrative | Gemini structured output over real computed numbers (single-scenario or year portfolio); deterministic fallback without a key, generator labelled in-UI |
 | Streetscape renders | Illustrative AI imagery, labelled, static fallback disclosed |

@@ -11,7 +11,7 @@ interface MarketSummary {
 }
 
 interface MarketData {
-  source: "live" | "cached";
+  source: "live" | "cached" | "estimate";
   checkin: string;
   baseline_checkin: string;
   target: MarketSummary;
@@ -19,16 +19,28 @@ interface MarketData {
   demand_ratio: number | null;
 }
 
-export function MarketPulse() {
+export function MarketPulse({
+  lat,
+  lng,
+}: {
+  lat?: number;
+  lng?: number;
+}) {
   const [data, setData] = useState<MarketData | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/stay22/market`)
+    setFailed(false);
+    setData(null);
+    const params = new URLSearchParams();
+    if (lat != null) params.set("lat", String(lat));
+    if (lng != null) params.set("lng", String(lng));
+    const qs = params.toString();
+    fetch(`${API_BASE}/stay22/market${qs ? `?${qs}` : ""}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then(setData)
       .catch(() => setFailed(true));
-  }, []);
+  }, [lat, lng]);
 
   if (failed) return null;
 

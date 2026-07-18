@@ -54,3 +54,4 @@ class YearBriefingResponse(BaseModel):
     fallback_reason: str | None = None
     # Primary comparison (heat-wave) for clients that still expect one A/B view.
     comparison: dict[str, Any]
+    climate: dict[str, Any] | None = None

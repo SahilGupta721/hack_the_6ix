@@ -8,7 +8,7 @@ served. Nothing touches disk or a database.
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.agents.gather import fetch_stay22_market
 
@@ -16,10 +16,14 @@ router = APIRouter()
 
 
 @router.get("/stay22/market")
-async def market(checkin: str | None = None) -> dict[str, Any]:
+async def market(
+    checkin: str | None = None,
+    lat: float | None = Query(default=None),
+    lng: float | None = Query(default=None),
+) -> dict[str, Any]:
     """Live forward-date market pressure near the site: the target weekend
     priced against a shoulder weekend four weeks later."""
-    result = await fetch_stay22_market(checkin)
+    result = await fetch_stay22_market(checkin, lat=lat, lng=lng)
     if result.get("error") and result.get("source") != "cached":
         raise HTTPException(
             status_code=503,

@@ -129,9 +129,23 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
               Environmental impact (Green AI track)
             </p>
             <p className="mt-1 text-[11px] leading-snug text-text-soft">
-              {env?.note ||
+              {env?.climate?.note ||
+                env?.note ||
                 "Sim is source of truth for tCO2e and peak strain; agents only narrate."}
             </p>
+            {env?.climate && (
+              <p className="mt-1 text-[10.5px] text-text-soft">
+                Climate source:{" "}
+                <span className="font-semibold text-text-strong">
+                  {env.climate.source}
+                </span>
+                {env.climate.provider ? ` · ${env.climate.provider}` : ""}
+                {env.site?.lat != null && env.site?.lng != null
+                  ? ` · site (${env.site.lat.toFixed(4)}, ${env.site.lng.toFixed(4)})`
+                  : ""}
+                . Not 8760h.
+              </p>
+            )}
             <div className="mt-2.5 grid grid-cols-2 gap-2 text-[12px] sm:grid-cols-4">
               <EnvStat
                 label="Option A tCO2e/yr"

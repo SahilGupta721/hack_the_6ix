@@ -16,12 +16,20 @@ from innsight_model.sim import Comparison, OptionResult
 
 PACKS_DIR = Path(__file__).resolve().parent / "packs"
 
-SITE_LAT = 43.6476
-SITE_LNG = -79.3744
+DEFAULT_SITE_LAT = 43.6476
+DEFAULT_SITE_LNG = -79.3744
+# Back-compat aliases
+SITE_LAT = DEFAULT_SITE_LAT
+SITE_LNG = DEFAULT_SITE_LNG
 STAY22_BASE = "https://api.stay22.com/v2/accommodations"
 
 # In-process cache only (Stay22 terms: no disk / DB listing storage).
-_last_stay22: dict[str, Any] | None = None
+# Keyed by rounded (lat, lng) so relocating the pin does not reuse the wrong sample.
+_last_stay22: dict[tuple[float, float], dict[str, Any]] = {}
+
+
+def _coord_key(lat: float, lng: float) -> tuple[float, float]:
+    return (round(lat, 3), round(lng, 3))
 
 
 def _next_saturday() -> date:
@@ -29,14 +37,23 @@ def _next_saturday() -> date:
     return today + timedelta(days=(5 - today.weekday()) % 7 or 7)
 
 
+def _ontario_ish(lat: float, lng: float) -> bool:
+    return 41.0 <= lat <= 57.5 and -95.0 <= lng <= -74.0
+
+
 async def _stay22_search(
-    client: httpx.AsyncClient, checkin: date, checkout: date
+    client: httpx.AsyncClient,
+    checkin: date,
+    checkout: date,
+    *,
+    lat: float,
+    lng: float,
 ) -> dict[str, Any]:
     response = await client.get(
         STAY22_BASE,
         params={
-            "lat": SITE_LAT,
-            "lng": SITE_LNG,
+            "lat": lat,
+            "lng": lng,
             "radius": 3000,
             "checkin": checkin.isoformat(),
             "checkout": checkout.isoformat(),
@@ -69,9 +86,16 @@ def _summarize_stay22(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def fetch_stay22_market(checkin: str | None = None) -> dict[str, Any]:
+async def fetch_stay22_market(
+    checkin: str | None = None,
+    *,
+    lat: float | None = None,
+    lng: float | None = None,
+) -> dict[str, Any]:
     """Shared Stay22 pull used by /stay22/market and the briefing gatherer."""
-    global _last_stay22
+    site_lat = DEFAULT_SITE_LAT if lat is None else lat
+    site_lng = DEFAULT_SITE_LNG if lng is None else lng
+    cache_key = _coord_key(site_lat, site_lng)
 
     target_in = date.fromisoformat(checkin) if checkin else _next_saturday()
     target_out = target_in + timedelta(days=1)
@@ -80,8 +104,12 @@ async def fetch_stay22_market(checkin: str | None = None) -> dict[str, Any]:
 
     try:
         async with httpx.AsyncClient() as client:
-            target_raw = await _stay22_search(client, target_in, target_out)
-            baseline_raw = await _stay22_search(client, baseline_in, baseline_out)
+            target_raw = await _stay22_search(
+                client, target_in, target_out, lat=site_lat, lng=site_lng
+            )
+            baseline_raw = await _stay22_search(
+                client, baseline_in, baseline_out, lat=site_lat, lng=site_lng
+            )
         target = _summarize_stay22(target_raw)
         baseline = _summarize_stay22(baseline_raw)
         demand_ratio = (
@@ -93,22 +121,27 @@ async def fetch_stay22_market(checkin: str | None = None) -> dict[str, Any]:
             "source": "live",
             "checkin": target_in.isoformat(),
             "baseline_checkin": baseline_in.isoformat(),
+            "lat": site_lat,
+            "lng": site_lng,
             "target": target,
             "baseline": baseline,
             "demand_ratio": demand_ratio,
-            "note": "Live Stay22 demo-mode pull, 3 km around 45 The Esplanade. "
-            "No listings are stored.",
+            "note": (
+                f"Live Stay22 demo-mode pull, 3 km around "
+                f"({site_lat:.4f}, {site_lng:.4f}). No listings are stored."
+            ),
         }
-        _last_stay22 = result
+        _last_stay22[cache_key] = result
         return result
     except Exception as exc:
-        if _last_stay22 is not None:
+        cached = _last_stay22.get(cache_key)
+        if cached is not None:
             return {
-                **_last_stay22,
+                **cached,
                 "source": "cached",
                 "note": (
-                    "Live pull failed; serving this session's earlier pull. "
-                    "Disclosed as cached in the demo."
+                    "Live pull failed; serving this session's earlier pull for "
+                    "these coordinates. Disclosed as cached in the demo."
                 ),
                 "error": str(exc),
             }
@@ -116,6 +149,8 @@ async def fetch_stay22_market(checkin: str | None = None) -> dict[str, Any]:
             "source": "estimate",
             "checkin": target_in.isoformat(),
             "baseline_checkin": baseline_in.isoformat(),
+            "lat": site_lat,
+            "lng": site_lng,
             "target": {
                 "properties": 0,
                 "priced": 0,
@@ -147,39 +182,66 @@ def load_compliance_pack() -> dict[str, Any]:
     return _load_pack("compliance.json")
 
 
-async def fetch_electricity_maps() -> dict[str, Any]:
-    """Optional live carbon intensity for Ontario (CA-ON)."""
+async def fetch_electricity_maps(
+    *,
+    lat: float | None = None,
+    lng: float | None = None,
+) -> dict[str, Any]:
+    """Optional live carbon intensity near the site (Electricity Maps)."""
+    site_lat = DEFAULT_SITE_LAT if lat is None else lat
+    site_lng = DEFAULT_SITE_LNG if lng is None else lng
     key = os.environ.get("ELECTRICITYMAPS_API_KEY") or ""
+    default_zone = "CA-ON" if _ontario_ish(site_lat, site_lng) else "CA-ON"
     if not key:
         return {
             "source": "benchmark",
-            "zone": "CA-ON",
+            "zone": default_zone,
+            "lat": site_lat,
+            "lng": site_lng,
             "carbon_intensity": None,
-            "note": "No ELECTRICITYMAPS_API_KEY; using TAF Ontario grid benchmarks.",
+            "note": (
+                "No ELECTRICITYMAPS_API_KEY; using TAF Ontario grid benchmarks "
+                f"for coords ({site_lat:.4f}, {site_lng:.4f})."
+            ),
         }
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 "https://api.electricitymaps.com/v3/carbon-intensity/latest",
-                params={"zone": "CA-ON"},
+                params={"lat": site_lat, "lon": site_lng},
                 headers={"auth-token": key},
                 timeout=8.0,
             )
+            if response.status_code >= 400:
+                response = await client.get(
+                    "https://api.electricitymaps.com/v3/carbon-intensity/latest",
+                    params={"zone": default_zone},
+                    headers={"auth-token": key},
+                    timeout=8.0,
+                )
             response.raise_for_status()
             data = response.json()
         intensity = data.get("carbonIntensity")
+        zone = data.get("zone") or default_zone
         return {
             "source": "live",
-            "zone": "CA-ON",
+            "zone": zone,
+            "lat": site_lat,
+            "lng": site_lng,
             "carbon_intensity": intensity,
             "datetime": data.get("datetime"),
-            "note": "Live Electricity Maps carbon intensity for Ontario.",
+            "note": (
+                f"Live Electricity Maps carbon intensity for {zone} "
+                f"resolved near ({site_lat:.4f}, {site_lng:.4f})."
+            ),
             "url": "https://www.electricitymaps.com/",
         }
     except Exception as exc:
         return {
             "source": "benchmark",
-            "zone": "CA-ON",
+            "zone": default_zone,
+            "lat": site_lat,
+            "lng": site_lng,
             "carbon_intensity": None,
             "note": f"Electricity Maps unreachable ({exc}); using TAF benchmarks.",
         }
@@ -222,10 +284,17 @@ def comparison_context(comparison: Comparison) -> dict[str, Any]:
     }
 
 
-def environment_context(live_grid: dict[str, Any]) -> dict[str, Any]:
+def environment_context(
+    live_grid: dict[str, Any],
+    *,
+    climate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    peaks = (climate or {}).get("peaks_c") or {}
+    heatwave_peak = peaks.get("heatwave_full", B.HEATWAVE_EVENT_PEAK_C.value)
     return {
-        "heatwave_peak_c": B.HEATWAVE_EVENT_PEAK_C.value,
-        "heatwave_source": B.HEATWAVE_EVENT_PEAK_C.source,
+        "heatwave_peak_c": heatwave_peak,
+        "heatwave_source": (climate or {}).get("url") or B.HEATWAVE_EVENT_PEAK_C.source,
+        "climate": climate,
         "grid_intensity_avg_g_per_kwh": B.GRID_INTENSITY_AVG.value,
         "grid_intensity_peak_g_per_kwh": B.GRID_INTENSITY_PEAK.value,
         "grid_avg_source": B.GRID_INTENSITY_AVG.source,
@@ -236,10 +305,8 @@ def environment_context(live_grid: dict[str, Any]) -> dict[str, Any]:
 
 def green_ratio_context(comparison: Comparison) -> dict[str, Any]:
     """Relative greenness vs a neighborhood hospitality carbon proxy."""
-    # Estimate: CBECS hotel elec intensity x ~350 sqft/room x TAF grid avg.
-    # Gas omitted on purpose so the proxy stays conservative and labelled.
-    avg = B.GRID_INTENSITY_AVG.value  # gCO2e/kWh
-    hotel_elec = B.HOTEL_ELEC_INTENSITY.value  # kWh/sqft/yr
+    avg = B.GRID_INTENSITY_AVG.value
+    hotel_elec = B.HOTEL_ELEC_INTENSITY.value
     sqft_per_room = 350.0
     life = B.BUILDING_LIFE_YEARS.value
     kwh_per_room = hotel_elec * sqft_per_room
@@ -269,12 +336,18 @@ def green_ratio_context(comparison: Comparison) -> dict[str, Any]:
     }
 
 
-async def gather_all(comparison: Comparison) -> dict[str, Any]:
-    market, live_grid = await _gather_async()
+async def gather_all(
+    comparison: Comparison,
+    *,
+    lat: float | None = None,
+    lng: float | None = None,
+    climate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    market, live_grid = await _gather_async(lat=lat, lng=lng)
     return {
         "comparison": comparison_context(comparison),
         "market": market,
-        "environment": environment_context(live_grid),
+        "environment": environment_context(live_grid, climate=climate),
         "neighborhood": load_neighborhood_pack(),
         "compliance": load_compliance_pack(),
         "green_ratio": green_ratio_context(comparison),
@@ -298,10 +371,21 @@ async def gather_all(comparison: Comparison) -> dict[str, Any]:
                 ),
             },
         },
+        "site": {
+            "lat": DEFAULT_SITE_LAT if lat is None else lat,
+            "lng": DEFAULT_SITE_LNG if lng is None else lng,
+        },
     }
 
 
-async def _gather_async() -> tuple[dict[str, Any], dict[str, Any]]:
+async def _gather_async(
+    *,
+    lat: float | None = None,
+    lng: float | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     import asyncio
 
-    return await asyncio.gather(fetch_stay22_market(), fetch_electricity_maps())
+    return await asyncio.gather(
+        fetch_stay22_market(lat=lat, lng=lng),
+        fetch_electricity_maps(lat=lat, lng=lng),
+    )

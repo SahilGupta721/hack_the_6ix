@@ -11,6 +11,7 @@ import { STRESS_SCENARIOS, scenarioLabel } from "@/lib/scenarios";
 import type {
   AgentBrief,
   BossSynthesis,
+  ClimateMeta,
   Comparison,
   MatrixSummary,
   OptionKey,
@@ -32,6 +33,9 @@ interface StressViewProps {
   scenarios?: Record<string, Comparison> | null;
   focusScenario?: string;
   onFocusScenario?: (key: string) => void;
+  siteLat?: number;
+  siteLng?: number;
+  climate?: ClimateMeta | null;
 }
 
 export function StressView({
@@ -48,12 +52,19 @@ export function StressView({
   scenarios,
   focusScenario,
   onFocusScenario,
+  siteLat,
+  siteLng,
+  climate,
 }: StressViewProps) {
   const yearMode = Boolean(matrixSummary && scenarios);
   const focusKey = focusScenario ?? "heatwave_full";
   const focusComparison =
     (yearMode && scenarios?.[focusKey]) || comparison;
   const focusMeta = STRESS_SCENARIOS.find((s) => s.key === focusKey);
+  const climateLabel =
+    climate?.source === "live"
+      ? `Open-Meteo archive ${climate.archive_year ?? ""}`.trim()
+      : "Toronto benchmark curves";
 
   return (
     <div className="pointer-events-auto h-full overflow-y-auto bg-[#0b1420]/92 p-4 backdrop-blur-sm">
@@ -66,9 +77,19 @@ export function StressView({
           </h2>
           {yearMode && (
             <p className="mt-1 max-w-2xl text-[11px] leading-snug text-white/55">
-              Five extreme 48h weekends run in parallel (not a full 8760h year).
-              Annual energy stays CBECS averages. Tap a row to focus the load
-              charts below.
+              Five extreme 48h weekends from {climateLabel} (not a full 8760h
+              year). Annual energy stays CBECS averages. Tap a row to focus the
+              load charts below.
+              {climate?.peaks_c?.heatwave_full != null && (
+                <>
+                  {" "}
+                  Local heat peak {climate.peaks_c.heatwave_full} C
+                  {climate.peaks_c.deep_cold_full != null
+                    ? `; deep cold ${climate.peaks_c.deep_cold_full} C`
+                    : ""}
+                  .
+                </>
+              )}
             </p>
           )}
         </div>
@@ -89,12 +110,13 @@ export function StressView({
           matrix={matrixSummary}
           focusKey={focusKey}
           onFocus={(key) => onFocusScenario?.(key)}
+          climatePeaks={climate?.peaks_c}
         />
       )}
 
       {FLAGS.stay22 && (
         <div className="mb-2.5">
-          <MarketPulse />
+          <MarketPulse lat={siteLat} lng={siteLng} />
         </div>
       )}
       {FLAGS.agents && briefs && synthesis && briefingGenerator && (
@@ -135,10 +157,12 @@ function MatrixStrip({
   matrix,
   focusKey,
   onFocus,
+  climatePeaks,
 }: {
   matrix: MatrixSummary;
   focusKey: string;
   onFocus: (key: string) => void;
+  climatePeaks?: Record<string, number>;
 }) {
   const flips = new Set(matrix.flip_scenarios || []);
   return (
@@ -160,6 +184,7 @@ function MatrixStrip({
             if (!peaks || !strains || !rec) return null;
             const isFocus = focusKey === s.key;
             const isFlip = flips.has(s.key);
+            const outdoor = climatePeaks?.[s.key];
             return (
               <tr
                 key={s.key}
@@ -172,6 +197,7 @@ function MatrixStrip({
                   <span className="font-semibold text-white">{s.label}</span>
                   <span className="mt-0.5 block text-[9.5px] font-normal text-white/45">
                     {s.blurb}
+                    {outdoor != null ? ` · outdoor peak ${outdoor} C` : ""}
                   </span>
                 </td>
                 <td className="px-2 py-1.5 text-white/80">
