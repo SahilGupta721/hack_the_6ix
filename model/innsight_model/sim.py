@@ -7,15 +7,16 @@ sources; anything heuristic is labelled as such all the way into the memo.
 Recommendation rule (documented, rendered in the memo):
 1. Compute each option's capex, annual operating cost, and tCO2e/yr
    (operational + embodied amortized).
-2. If the greener option is also cheaper over the decision horizon, recommend it.
+2. If the greener option is also cheaper overall, recommend it outright.
 3. Otherwise compute the implied carbon abatement cost: net lifetime premium
-   divided by lifetime tonnes saved. Recommend the greener option only when that
-   cost is at or below Canada's federal 2030 carbon-price benchmark ($170/t,
-   sourced in benchmarks.ABATEMENT_THRESHOLD). This is what makes the
-   recommendation flip honestly between a 6-room homestay (tiny absolute
-   savings, fixed switching costs dominate) and a 40-room hotel.
+   (capex premium plus any lifetime operating-cost penalty) divided by tonnes
+   saved over the RICS 60-year reference life. Recommend the greener option
+   only when that cost is at or below Canada's federal 2030 carbon-price
+   benchmark ($170/t, sourced). Fixed switching costs and the absence of
+   demand-charge savings at small scale are what make this flip honestly
+   between a 6-room homestay and a 40-room hotel.
 
-Unit notes: 1 kBtu = 0.293071 kWh; 1 kBtu = 1.05506 MJ; 1 sqft = 0.092903 m2.
+Unit notes: 1 sqft = 0.092903 m2.
 """
 
 from dataclasses import dataclass, field
@@ -23,8 +24,6 @@ from dataclasses import dataclass, field
 from . import benchmarks as B
 from .load_profiles import get_profile
 
-KWH_PER_KBTU = 0.293071
-MJ_PER_KBTU = 1.05506
 M2_PER_SQFT = 0.092903
 
 STRUCTURES = ("concrete", "mass_timber", "steel")
@@ -61,9 +60,9 @@ class StressScenario:
             raise ValueError("scenario length must be whole days")
 
 
-# Toronto-style stress weekends, hour 0 = Saturday midnight. The heat-wave
-# diurnal swing mirrors documented July Toronto heat events (citation carried
-# with the weather benchmark research).
+# Toronto stress weekends, hour 0 = Saturday midnight. The heat-wave profile
+# peaks at 36.2 C, matching the documented July 14, 2026 Toronto heat event
+# (benchmarks.HEATWAVE_EVENT_PEAK_C carries the citation).
 _HEATWAVE_TEMPS: tuple[float, ...] = tuple(
     [
         25.0, 24.5, 24.0, 23.5, 23.5, 24.0,
@@ -74,7 +73,7 @@ _HEATWAVE_TEMPS: tuple[float, ...] = tuple(
     + [
         25.5, 25.0, 24.5, 24.0, 24.0, 24.5,
         26.0, 27.5, 29.5, 31.5, 33.0, 34.0,
-        35.0, 36.0, 36.5, 36.0, 35.0, 33.0,
+        35.0, 35.8, 36.2, 35.8, 34.5, 33.0,
         31.5, 30.0, 28.5, 27.5, 26.5, 26.0,
     ]
 )
@@ -135,29 +134,31 @@ def floor_area_sqft(config: BuildingConfig) -> float:
     return config.rooms * B.SQFT_PER_ROOM[config.building_type].value
 
 
-def _annual_energy(config: BuildingConfig) -> tuple[float, float]:
-    """Annual (electricity kWh, natural gas m3) at market-average occupancy."""
-    area = floor_area_sqft(config)
-    site_kbtu = (
-        B.EUI_LODGING_TOTAL.value
-        * B.EUI_TYPE_FACTOR[config.building_type].value
-        * area
-    )
-    elec_kbtu = site_kbtu * B.EUI_LODGING_ELECTRICITY_SHARE.value
-    fuel_kbtu = site_kbtu - elec_kbtu
+@dataclass(frozen=True)
+class _EnergySplit:
+    elec_kwh: float  # total annual electricity
+    gas_m3: float  # annual natural gas
+    hp_heat_elec_kwh: float  # electrified heating load inside elec_kwh
 
-    elec_kwh = elec_kbtu * KWH_PER_KBTU
-    if config.hvac == "heat_pump":
-        # Fuel loads (space heat + DHW) are electrified through the heat pump.
-        delivered_heat_kwh = fuel_kbtu * KWH_PER_KBTU * B.GAS_BOILER_EFFICIENCY.value
-        elec_kwh += delivered_heat_kwh / B.HEAT_PUMP_COP.value
-        # Better cooling plant trims the cooling slice of electricity.
-        cooling_kwh = elec_kbtu * KWH_PER_KBTU * B.COOLING_SHARE_OF_ELECTRICITY.value
-        elec_kwh -= cooling_kwh * (1.0 - 1.0 / B.COOLING_EER_RATIO_HEAT_PUMP.value)
-        gas_m3 = 0.0
-    else:
-        gas_m3 = fuel_kbtu * MJ_PER_KBTU / B.GAS_ENERGY_CONTENT.value
-    return elec_kwh, gas_m3
+
+def _annual_energy(config: BuildingConfig) -> _EnergySplit:
+    """Annual energy at market-average occupancy, from CBECS hotel means."""
+    area = floor_area_sqft(config)
+    factor = B.EUI_TYPE_FACTOR[config.building_type].value
+    elec_kwh = B.HOTEL_ELEC_INTENSITY.value * factor * area
+    gas_m3 = B.HOTEL_GAS_INTENSITY_M3.value * factor * area
+
+    if config.hvac != "heat_pump":
+        return _EnergySplit(elec_kwh, gas_m3, 0.0)
+
+    # Fuel loads (space heat + DHW) electrify through the heat pump.
+    fuel_kwh = gas_m3 * B.GAS_ENERGY_CONTENT_KWH_M3.value
+    delivered_heat_kwh = fuel_kwh * B.GAS_BOILER_EFFICIENCY.value
+    hp_heat_elec = delivered_heat_kwh / B.HEAT_PUMP_COP.value
+    # Better cooling plant trims the cooling slice of electricity.
+    cooling_kwh = elec_kwh * B.COOLING_SHARE_OF_ELECTRICITY.value
+    cooling_saved = cooling_kwh * (1.0 - 1.0 / B.COOLING_EER_RATIO_HEAT_PUMP.value)
+    return _EnergySplit(elec_kwh + hp_heat_elec - cooling_saved, 0.0, hp_heat_elec)
 
 
 def _peak_cooling_kw(config: BuildingConfig, temp_c: float) -> float:
@@ -171,7 +172,7 @@ def _peak_cooling_kw(config: BuildingConfig, temp_c: float) -> float:
 
 
 def _hourly_curve(
-    config: BuildingConfig, scenario: StressScenario, annual_elec_kwh: float
+    config: BuildingConfig, scenario: StressScenario, energy: _EnergySplit
 ) -> tuple[float, ...]:
     profile = get_profile(config.building_type)
     base_share = (
@@ -179,9 +180,22 @@ def _hourly_curve(
         if config.building_type == "homestay"
         else B.HOTEL_BASE_LOAD_SHARE.value
     )
-    avg_kw = annual_elec_kwh / 8760.0
+    # Space heating does not run in a July stress window; only the DHW share
+    # of electrified fuel shows up in the summer curve.
+    summer_elec_kwh = energy.elec_kwh - energy.hp_heat_elec_kwh * (
+        1.0 - B.DHW_SHARE_OF_FUEL.value
+    )
+    avg_kw = summer_elec_kwh / 8760.0
     occ_ratio = scenario.occupancy / B.AVG_ANNUAL_OCCUPANCY.value
     non_cooling_avg_kw = avg_kw * (1.0 - B.COOLING_SHARE_OF_ELECTRICITY.value)
+
+    # Interior-zone cooling keeps running through warm summer nights.
+    scenario_mean_temp = sum(scenario.hourly_temps_c) / len(scenario.hourly_temps_c)
+    cooling_season = scenario_mean_temp > B.COOLING_BALANCE_POINT_C.value
+    design_kw = floor_area_sqft(config) * B.PEAK_COOLING_W_PER_SQFT.value / 1000.0
+    if config.hvac == "heat_pump":
+        design_kw /= B.COOLING_EER_RATIO_HEAT_PUMP.value
+    floor_kw = design_kw * B.COOLING_INTERNAL_FLOOR.value if cooling_season else 0.0
 
     curve: list[float] = []
     for hour, temp in enumerate(scenario.hourly_temps_c):
@@ -189,7 +203,9 @@ def _hourly_curve(
         occupancy_kw = non_cooling_avg_kw * (
             base_share + (1.0 - base_share) * occ_ratio * shape
         )
-        cooling_kw = _peak_cooling_kw(config, temp) * (0.6 + 0.4 * occ_ratio)
+        cooling_kw = max(_peak_cooling_kw(config, temp), floor_kw) * (
+            0.6 + 0.4 * occ_ratio
+        )
         curve.append(round(occupancy_kw + cooling_kw, 4))
     return tuple(curve)
 
@@ -223,17 +239,37 @@ def _construction(config: BuildingConfig) -> tuple[float, float, float]:
     return base, base * 0.85, base * 1.15
 
 
+def _is_demand_billed(config: BuildingConfig) -> bool:
+    """Homestays sit under Toronto Hydro's 50 kW demand-billing threshold."""
+    return config.building_type != "homestay"
+
+
 def run_option(config: BuildingConfig, scenario: StressScenario) -> OptionResult:
     area = floor_area_sqft(config)
-    elec_kwh, gas_m3 = _annual_energy(config)
-    curve = _hourly_curve(config, scenario, elec_kwh)
-    peak = max(curve)  # curve values are already rounded; peak matches exactly
+    energy = _annual_energy(config)
+    curve = _hourly_curve(config, scenario, energy)
+    peak = max(curve)
     ratio, strain_class = _strain(config, peak)
 
-    energy_cost = elec_kwh * B.ELEC_RATE_BLENDED.value + gas_m3 * B.GAS_RATE.value
-    # Demand charges billed on the typical month's peak, not the stress peak.
-    typical_curve = _hourly_curve(config, SCENARIOS["typical_weekend"], elec_kwh)
-    demand_cost = max(typical_curve) * B.DEMAND_CHARGE_PER_KW_MONTH.value * 12.0
+    if _is_demand_billed(config):
+        elec_rate = B.ELEC_RATE_COMMERCIAL.value
+        gas_rate = B.GAS_RATE_COMMERCIAL.value
+        # Billing demand: nine shoulder months at the typical-weekend peak,
+        # three summer months near the stress peak.
+        typical_peak = max(
+            _hourly_curve(config, SCENARIOS["typical_weekend"], energy)
+        )
+        stress_peak = max(_hourly_curve(config, SCENARIOS["heatwave_full"], energy))
+        billing_kw = (9.0 * typical_peak + 3.0 * stress_peak) / 12.0
+        demand_cost = billing_kw * B.DEMAND_CHARGE_PER_KW_MONTH.value * 12.0
+    else:
+        elec_rate = B.ELEC_RATE_SMALL.value
+        gas_rate = B.GAS_RATE_SMALL.value
+        demand_cost = 0.0
+
+    energy_cost = (
+        energy.elec_kwh * elec_rate + energy.gas_m3 * gas_rate + demand_cost
+    )
     water_m3 = (
         config.rooms
         * 365.0
@@ -243,8 +279,8 @@ def run_option(config: BuildingConfig, scenario: StressScenario) -> OptionResult
     water_cost = water_m3 * B.WATER_RATE.value
 
     op_tco2e = (
-        elec_kwh * B.GRID_INTENSITY_AVG.value / 1e6
-        + gas_m3 * B.GAS_EMISSION_FACTOR.value / 1e3
+        energy.elec_kwh * B.GRID_INTENSITY_AVG.value / 1e6
+        + energy.gas_m3 * B.GAS_EMISSION_FACTOR.value / 1e3
     )
     embodied_total_kg = area * M2_PER_SQFT * B.EMBODIED_CARBON[config.structure].value
     embodied_annual = embodied_total_kg / 1e3 / B.BUILDING_LIFE_YEARS.value
@@ -259,13 +295,13 @@ def run_option(config: BuildingConfig, scenario: StressScenario) -> OptionResult
         peak_kw=peak,
         strain_ratio=ratio,
         strain_class=strain_class,
-        annual_elec_kwh=round(elec_kwh, 1),
-        annual_gas_m3=round(gas_m3, 1),
-        annual_energy_cost=round(energy_cost, 2),
+        annual_elec_kwh=round(energy.elec_kwh, 1),
+        annual_gas_m3=round(energy.gas_m3, 1),
+        annual_energy_cost=round(energy_cost - demand_cost, 2),
         annual_demand_cost=round(demand_cost, 2),
         annual_water_m3=round(water_m3, 1),
         annual_water_cost=round(water_cost, 2),
-        annual_operating_cost=round(energy_cost + demand_cost + water_cost, 2),
+        annual_operating_cost=round(energy_cost + water_cost, 2),
         tco2e_operational=round(op_tco2e, 2),
         tco2e_embodied_amortized=round(embodied_annual, 2),
         tco2e_total=round(op_tco2e + embodied_annual, 2),
@@ -318,16 +354,15 @@ def compare(
     tco2e_delta = ra.tco2e_total - rb.tco2e_total
     payback = _payback_years(capex_delta, annual_delta)
 
-    horizon = B.PAYBACK_HORIZON_YEARS.value
+    life = B.BUILDING_LIFE_YEARS.value
     threshold = B.ABATEMENT_THRESHOLD.value
 
-    # Identify the greener option, then apply the documented rule.
-    greener, other = ("B", "A") if tco2e_delta > 0 else ("A", "B")
+    greener = "B" if tco2e_delta > 0 else "A"
     g, o = (rb, ra) if greener == "B" else (ra, rb)
-    g_premium = g.construction_cost - o.construction_cost
-    g_annual_savings = o.annual_operating_cost - g.annual_operating_cost
-    lifetime_tonnes = abs(tco2e_delta) * horizon
-    net_premium = g_premium - g_annual_savings * horizon
+    g_capex_premium = g.construction_cost - o.construction_cost
+    g_annual_penalty = g.annual_operating_cost - o.annual_operating_cost
+    lifetime_tonnes = abs(tco2e_delta) * life
+    net_premium = g_capex_premium + g_annual_penalty * life
 
     abatement: float | None
     if lifetime_tonnes <= 0:
@@ -337,10 +372,9 @@ def compare(
     else:
         abatement = net_premium / lifetime_tonnes
 
-    if abatement is not None and abatement <= threshold:
-        recommended = greener
-    else:
-        recommended = other
+    recommended = greener if abatement is not None and abatement <= threshold else (
+        "A" if greener == "B" else "B"
+    )
 
     reasoning: list[str] = [
         f"Capex: A ${ra.construction_cost:,.0f} vs B ${rb.construction_cost:,.0f} "
@@ -348,8 +382,7 @@ def compare(
         f"Annual operating cost (energy + demand + water): "
         f"A ${ra.annual_operating_cost:,.0f} vs B ${rb.annual_operating_cost:,.0f}.",
         f"Total carbon: A {ra.tco2e_total:,.1f} vs B {rb.tco2e_total:,.1f} tCO2e/yr "
-        f"(operational + embodied amortized over "
-        f"{B.BUILDING_LIFE_YEARS.value:.0f} years).",
+        f"(operational + embodied amortized over {life:.0f} years).",
         f"Peak grid strain under '{scenario.name}': A {ra.strain_class} "
         f"({ra.peak_kw:,.0f} kW) vs B {rb.strain_class} ({rb.peak_kw:,.0f} kW).",
     ]
@@ -358,23 +391,25 @@ def compare(
     elif payback is not None:
         reasoning.append(
             f"The premium pays back in about {payback:.0f} years at escalated "
-            f"energy prices."
+            f"energy prices (a {B.PAYBACK_HORIZON_YEARS.value:.0f}-year hold is "
+            f"the typical window)."
         )
     else:
         reasoning.append(
-            "The premium does not pay back on energy savings alone at current "
-            "Ontario prices (gas is cheap per delivered kWh)."
+            "The premium does not pay back on operating savings alone at "
+            "current Ontario prices; delivered gas heat costs roughly a third "
+            "of the equivalent electricity."
         )
     if abatement is not None:
         reasoning.append(
             f"Implied carbon abatement cost of choosing Option {greener}: "
-            f"${abatement:,.0f}/tCO2e over a {horizon:.0f}-year horizon, vs the "
-            f"${threshold:,.0f}/tCO2e federal 2030 benchmark. "
+            f"${abatement:,.0f}/tCO2e over the {life:.0f}-year RICS reference "
+            f"life, vs the ${threshold:,.0f}/tCO2e federal 2030 benchmark. "
             + (
                 "Below the benchmark, so the greener option is the rational pick."
                 if abatement <= threshold
-                else "Above the benchmark, so the premium is better spent elsewhere "
-                "at this scale."
+                else "Above the benchmark at this scale; the premium is better "
+                "deployed elsewhere."
             )
         )
     reasoning.append(f"Recommendation: Option {recommended}.")
@@ -397,6 +432,12 @@ def compare(
 def demo_pair(building_type: str, rooms: int) -> tuple[BuildingConfig, BuildingConfig]:
     """The canonical A/B pair: conventional vs low-carbon."""
     return (
-        BuildingConfig(building_type, rooms, "concrete", "central_gas", "Option A: Concrete + Central HVAC"),
-        BuildingConfig(building_type, rooms, "mass_timber", "heat_pump", "Option B: Mass Timber + Heat Pumps"),
+        BuildingConfig(
+            building_type, rooms, "concrete", "central_gas",
+            "Option A: Concrete + Central HVAC",
+        ),
+        BuildingConfig(
+            building_type, rooms, "mass_timber", "heat_pump",
+            "Option B: Mass Timber + Heat Pumps",
+        ),
     )
