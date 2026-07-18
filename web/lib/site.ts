@@ -1,4 +1,13 @@
 // Demo site: 45 The Esplanade, Toronto. Geometry is illustrative, not a survey.
+
+export interface ActiveSite {
+  name: string;
+  lng: number;
+  lat: number;
+  zoom: number;
+  polygon: GeoJSON.Feature<GeoJSON.Polygon>;
+}
+
 export const SITE = {
   name: "45 The Esplanade",
   projectTitle: "Project: 40-Room Hotel Initiative",
@@ -10,7 +19,7 @@ export const SITE = {
 // Illustrative parcel outline around the site centre (not permit-ready).
 export const SITE_POLYGON: GeoJSON.Feature<GeoJSON.Polygon> = {
   type: "Feature",
-  properties: {},
+  properties: { id: "default", label: SITE.name },
   geometry: {
     type: "Polygon",
     coordinates: [
@@ -24,3 +33,13 @@ export const SITE_POLYGON: GeoJSON.Feature<GeoJSON.Polygon> = {
     ],
   },
 };
+
+export function defaultActiveSite(): ActiveSite {
+  return {
+    name: SITE.name,
+    lng: SITE.lng,
+    lat: SITE.lat,
+    zoom: SITE.zoom,
+    polygon: SITE_POLYGON,
+  };
+}

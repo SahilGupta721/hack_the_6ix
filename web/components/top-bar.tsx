@@ -4,8 +4,11 @@ import { SITE } from "@/lib/site";
 import { clearLocalAuthState, loginHref, logoutHref } from "@/lib/auth0-shared";
 import { useAuth } from "@/lib/use-auth";
 
-export function TopBar() {
+export function TopBar({ siteName }: { siteName?: string }) {
   const auth = useAuth();
+  const title = siteName
+    ? `Project: ${siteName}`
+    : SITE.projectTitle;
 
   const handleLogout = () => {
     clearLocalAuthState();
@@ -20,7 +23,7 @@ export function TopBar() {
         </span>
       </div>
       <div className="h-5 w-px bg-ink-border" />
-      <span className="text-[13px] text-white/80">{SITE.projectTitle}</span>
+      <span className="truncate text-[13px] text-white/80">{title}</span>
       <div className="ml-auto flex items-center gap-3 text-white/60">
         {auth.enabled &&
           (auth.loggedIn ? (

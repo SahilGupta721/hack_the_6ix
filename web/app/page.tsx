@@ -30,6 +30,13 @@ import {
 } from "@/lib/build-config";
 import { FLAGS } from "@/lib/flags";
 import { ENTERED_KEY } from "@/lib/auth0-shared";
+import {
+  fetchEmptySites,
+  generateFallbackSites,
+  type CandidateSite,
+} from "@/lib/candidate-sites";
+import type { GeocodeResult } from "@/lib/geocode";
+import { defaultActiveSite, type ActiveSite } from "@/lib/site";
 import { useAuth } from "@/lib/use-auth";
 import type {
   AgentBrief,
@@ -93,6 +100,31 @@ export default function HomePage() {
   const [overlay, setOverlay] = useState<Overlay>("none");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [activeSite, setActiveSite] = useState<ActiveSite>(() => {
+    const base = defaultActiveSite();
+    const first = generateFallbackSites(base.lng, base.lat)[0];
+    if (!first) return base;
+    return {
+      name: base.name,
+      lng: first.center.lng,
+      lat: first.center.lat,
+      zoom: base.zoom,
+      polygon: first.polygon,
+    };
+  });
+  const [candidates, setCandidates] = useState<CandidateSite[]>(() => {
+    const site = defaultActiveSite();
+    return generateFallbackSites(site.lng, site.lat);
+  });
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(
+    () => {
+      const site = defaultActiveSite();
+      return generateFallbackSites(site.lng, site.lat)[0]?.id ?? null;
+    },
+  );
+  const [sitesNote, setSitesNote] = useState(
+    "Loading empty parcels from OpenStreetMap…",
+  );
   const runToken = useRef(0);
 
   const enterApp = useCallback(() => {
@@ -154,10 +186,74 @@ export default function HomePage() {
     if (overlay === "stress" || overlay === "memo") setOverlay("none");
   }, [overlay]);
 
+  const applyEmptySites = useCallback(
+    async (placeName: string, lng: number, lat: number, zoom = 17.2) => {
+      appendLog(`Finding empty parcels near ${placeName}…`);
+      const { sites, note, fromOsm } = await fetchEmptySites(lng, lat);
+      const first = sites[0];
+      setCandidates(sites);
+      setSelectedCandidateId(first?.id ?? null);
+      setSitesNote(note);
+      setActiveSite({
+        name: placeName,
+        lng: first?.center.lng ?? lng,
+        lat: first?.center.lat ?? lat,
+        zoom,
+        polygon: first?.polygon ?? defaultActiveSite().polygon,
+      });
+      setPlaced(false);
+      invalidate();
+      appendLog(
+        fromOsm
+          ? `Found ${sites.length} empty OSM parcels (parking / brownfield / open land) — click green to select.`
+          : `No OSM empty land nearby — ${sites.length} approximate pads. Check imagery before placing.`,
+      );
+    },
+    [appendLog, invalidate],
+  );
+
+  // Load real empty sites for the default Toronto demo once API is up.
+  useEffect(() => {
+    if (!entered) return;
+    const base = defaultActiveSite();
+    void applyEmptySites(base.name, base.lng, base.lat, base.zoom);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entered]);
+
   const handlePlace = useCallback(() => {
     setPlaced(true);
-    appendLog("Building massing placed at 45 The Esplanade (illustrative).");
-  }, [appendLog]);
+    const label =
+      candidates.find((c) => c.id === selectedCandidateId)?.label ??
+      activeSite.name;
+    appendLog(
+      `Building massing placed at ${label} (${activeSite.name}) — empty parcel selection.`,
+    );
+  }, [activeSite.name, appendLog, candidates, selectedCandidateId]);
+
+  const handleSearchPlace = useCallback(
+    (place: GeocodeResult) => {
+      const shortName =
+        place.displayName.split(",")[0]?.trim() || place.displayName;
+      void applyEmptySites(shortName, place.lng, place.lat);
+    },
+    [applyEmptySites],
+  );
+
+  const handleSelectCandidate = useCallback(
+    (site: CandidateSite) => {
+      setSelectedCandidateId(site.id);
+      setActiveSite((prev) => ({
+        ...prev,
+        lng: site.center.lng,
+        lat: site.center.lat,
+        polygon: site.polygon,
+      }));
+      setPlaced(false);
+      invalidate();
+      appendLog(`Selected ${site.label} — open land (not a building/road).`);
+    },
+    [appendLog, invalidate],
+  );
 
   const handleTypeChange = useCallback(
     (type: UiBuildingType) => {
@@ -317,7 +413,7 @@ export default function HomePage() {
 
   return (
     <div className="flex h-full flex-col">
-      <TopBar />
+      <TopBar siteName={activeSite.name} />
       {FLAGS.voice && (
         <VoiceController
           onSetOption={handleOptionChange}
@@ -338,7 +434,15 @@ export default function HomePage() {
               </p>
             </div>
           )}
-          <SiteMap building={building} />
+          <SiteMap
+            building={building}
+            activeSite={activeSite}
+            candidates={candidates}
+            selectedCandidateId={selectedCandidateId}
+            sitesNote={sitesNote}
+            onSearchPlace={handleSearchPlace}
+            onSelectCandidate={handleSelectCandidate}
+          />
           <DesignPanel
             placed={placed}
             uiType={uiType}

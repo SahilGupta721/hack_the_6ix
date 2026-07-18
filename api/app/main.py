@@ -25,7 +25,9 @@ from innsight_model.sim import (
 )
 
 from app.agents.router import router as agents_router
+from app.geocode import router as geocode_router
 from app.renders import router as renders_router
+from app.sites import router as sites_router
 from app.stay22 import router as stay22_router
 from app.storage import record_run
 from app.storage import router as storage_router
@@ -37,7 +39,12 @@ app = FastAPI(title="INNSIGHT API", version=MODEL_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +54,8 @@ app.include_router(stay22_router)
 app.include_router(renders_router)
 app.include_router(storage_router)
 app.include_router(users_router)
+app.include_router(geocode_router)
+app.include_router(sites_router)
 app.include_router(agents_router)
 
 

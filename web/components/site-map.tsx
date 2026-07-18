@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { SITE, SITE_POLYGON } from "@/lib/site";
+import {
+  candidatesToFeatureCollection,
+  type CandidateSite,
+} from "@/lib/candidate-sites";
+import { LocationSearch } from "@/components/location-search";
+import type { GeocodeResult } from "@/lib/geocode";
+import type { ActiveSite } from "@/lib/site";
 import type { Structure } from "@/lib/types";
 
 // Primary imagery: City of Toronto 2025 orthophoto (8 cm/px, open licence,
@@ -43,7 +49,6 @@ const STRUCTURE_COLOUR: Record<Structure, string> = {
   steel: "#7d93a8",
 };
 
-// Building footprint: the site polygon inset toward its centroid.
 function insetPolygon(
   feature: GeoJSON.Feature<GeoJSON.Polygon>,
   factor: number,
@@ -57,7 +62,7 @@ function insetPolygon(
   ]);
   return {
     type: "Feature",
-    properties: {},
+    properties: feature.properties ?? {},
     geometry: { type: "Polygon", coordinates: [inset] },
   };
 }
@@ -69,14 +74,32 @@ export interface BuildingSpec {
 
 interface SiteMapProps {
   building: BuildingSpec | null;
+  activeSite: ActiveSite;
+  candidates: CandidateSite[];
+  selectedCandidateId: string | null;
+  sitesNote?: string;
+  onSearchPlace: (place: GeocodeResult) => void;
+  onSelectCandidate: (site: CandidateSite) => void;
 }
 
-export function SiteMap({ building }: SiteMapProps) {
+export function SiteMap({
+  building,
+  activeSite,
+  candidates,
+  selectedCandidateId,
+  sitesNote,
+  onSearchPlace,
+  onSelectCandidate,
+}: SiteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const readyRef = useRef(false);
   const buildingRef = useRef<BuildingSpec | null>(building);
+  const candidatesRef = useRef(candidates);
+  const onSelectRef = useRef(onSelectCandidate);
   buildingRef.current = building;
+  candidatesRef.current = candidates;
+  onSelectRef.current = onSelectCandidate;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -84,8 +107,8 @@ export function SiteMap({ building }: SiteMapProps) {
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: SATELLITE_STYLE,
-      center: [SITE.lng, SITE.lat],
-      zoom: SITE.zoom,
+      center: [activeSite.lng, activeSite.lat],
+      zoom: activeSite.zoom,
       pitch: 55,
       bearing: -15,
       attributionControl: { compact: true },
@@ -95,22 +118,46 @@ export function SiteMap({ building }: SiteMapProps) {
     map.addControl(new maplibregl.NavigationControl(), "bottom-right");
 
     map.on("load", () => {
-      map.addSource("site", { type: "geojson", data: SITE_POLYGON });
+      map.addSource("candidates", {
+        type: "geojson",
+        data: candidatesToFeatureCollection(candidatesRef.current),
+      });
+      map.addSource("site", { type: "geojson", data: activeSite.polygon });
       map.addSource("building", {
         type: "geojson",
-        data: insetPolygon(SITE_POLYGON, 0.72),
+        data: insetPolygon(activeSite.polygon, 0.72),
+      });
+
+      map.addLayer({
+        id: "candidates-fill",
+        type: "fill",
+        source: "candidates",
+        paint: {
+          "fill-color": "#35c28f",
+          "fill-opacity": 0.28,
+        },
+      });
+      map.addLayer({
+        id: "candidates-outline",
+        type: "line",
+        source: "candidates",
+        paint: {
+          "line-color": "#0d7a55",
+          "line-width": 1.5,
+          "line-dasharray": [2, 1],
+        },
       });
       map.addLayer({
         id: "site-fill",
         type: "fill",
         source: "site",
-        paint: { "fill-color": "#f5c518", "fill-opacity": 0.08 },
+        paint: { "fill-color": "#f5c518", "fill-opacity": 0.18 },
       });
       map.addLayer({
         id: "site-outline",
         type: "line",
         source: "site",
-        paint: { "line-color": "#10151c", "line-width": 2 },
+        paint: { "line-color": "#f5c518", "line-width": 2.5 },
       });
       map.addLayer({
         id: "building-mass",
@@ -122,8 +169,6 @@ export function SiteMap({ building }: SiteMapProps) {
           "fill-extrusion-opacity": 0.92,
         },
       });
-      // Unconfigured upper envelope: translucent white shell above the
-      // configured structure, matching the ref sketch treatment.
       map.addLayer({
         id: "building-shell",
         type: "fill-extrusion",
@@ -135,6 +180,20 @@ export function SiteMap({ building }: SiteMapProps) {
           "fill-extrusion-opacity": 0.38,
         },
       });
+
+      map.on("click", "candidates-fill", (e) => {
+        const id = e.features?.[0]?.properties?.id as string | undefined;
+        if (!id) return;
+        const match = candidatesRef.current.find((c) => c.id === id);
+        if (match) onSelectRef.current(match);
+      });
+      map.on("mouseenter", "candidates-fill", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "candidates-fill", () => {
+        map.getCanvas().style.cursor = "";
+      });
+
       readyRef.current = true;
       syncBuilding(map, buildingRef.current);
     });
@@ -149,61 +208,70 @@ export function SiteMap({ building }: SiteMapProps) {
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || !readyRef.current) return;
+    map.flyTo({
+      center: [activeSite.lng, activeSite.lat],
+      zoom: activeSite.zoom,
+      essential: true,
+      duration: 1400,
+    });
+    const siteSrc = map.getSource("site") as maplibregl.GeoJSONSource | undefined;
+    const buildingSrc = map.getSource(
+      "building",
+    ) as maplibregl.GeoJSONSource | undefined;
+    siteSrc?.setData(activeSite.polygon);
+    buildingSrc?.setData(insetPolygon(activeSite.polygon, 0.72));
+    syncBuilding(map, buildingRef.current);
+  }, [activeSite]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !readyRef.current) return;
+    const src = map.getSource("candidates") as maplibregl.GeoJSONSource | undefined;
+    src?.setData(candidatesToFeatureCollection(candidates));
+  }, [candidates]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (map && readyRef.current) syncBuilding(map, building);
   }, [building]);
+
+  const selectedLabel =
+    candidates.find((c) => c.id === selectedCandidateId)?.label ??
+    activeSite.name;
 
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
-      <MapToolbar />
+
+      {/* Single top chrome — search left, site chip right of it; no stacked text */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3">
+        <div className="pointer-events-auto min-w-0 flex-1 pl-[300px]">
+          <LocationSearch onSelect={onSearchPlace} />
+        </div>
+        <div className="pointer-events-none max-w-[16rem] shrink-0 rounded-md border border-panel-border bg-white/95 px-3 py-2 shadow-md">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-soft">
+            Active site
+          </p>
+          <p className="truncate text-[12px] font-semibold text-text-strong">
+            {selectedLabel}
+          </p>
+        </div>
+      </div>
+
       <button
-        className="absolute right-3 top-12 z-10 grid h-8 w-8 place-items-center rounded bg-white shadow hover:bg-panel-muted"
+        type="button"
+        className="absolute bottom-24 right-3 z-10 grid h-8 w-8 place-items-center rounded bg-white shadow hover:bg-panel-muted"
         title="Layers"
       >
         <LayersIcon />
       </button>
-      <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2 rounded bg-white/90 px-2.5 py-1 text-[11px] font-medium text-text-strong shadow">
-        SITE: {SITE.name}
-      </div>
-    </div>
-  );
-}
 
-const TOOL_PATHS: { title: string; d: string }[] = [
-  { title: "Select", d: "M5 3l10 6-4.5 1L9 15 5 3Z" },
-  { title: "Line", d: "M4 14 14 4M4 14h0M14 4h0" },
-  { title: "Rectangle", d: "M4 5h10v8H4z" },
-  { title: "Draw", d: "M4 14l1-3 7-7 2 2-7 7-3 1Z" },
-  { title: "Measure", d: "M3 12l3-3 2 2 3-3 2 2 3-3M3 12l2 2 10-10" },
-];
-
-function MapToolbar() {
-  const [active, setActive] = useState(0);
-  return (
-    <div className="absolute left-[320px] top-12 z-10 flex items-center gap-0.5 rounded bg-white p-1 shadow">
-      {TOOL_PATHS.map((tool, i) => (
-        <button
-          key={tool.title}
-          title={tool.title}
-          onClick={() => setActive(i)}
-          className={`grid h-7 w-7 place-items-center rounded ${
-            active === i ? "bg-panel-muted" : "hover:bg-panel-muted"
-          }`}
-        >
-          <svg width="15" height="15" viewBox="0 0 18 18" aria-hidden="true">
-            <path
-              d={tool.d}
-              fill="none"
-              stroke="#3a4452"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      ))}
-      <span className="ml-1 rounded border border-panel-border px-2 py-0.5 text-[10.5px] text-text-soft">
-        Measures
-      </span>
+      <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 max-w-lg -translate-x-1/2 rounded bg-ink/75 px-3 py-1.5 text-center text-[10px] leading-snug text-white/90">
+        {sitesNote?.trim()
+          ? sitesNote
+          : "Green outlines = empty OSM land (parking / brownfield / open). Click a parcel to build — not on houses or roads."}
+      </p>
     </div>
   );
 }
