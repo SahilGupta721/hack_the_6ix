@@ -348,7 +348,7 @@ function YearPackAppendix({
       </h2>
       <p className="mt-1 text-[11px] leading-snug text-text-soft">
         Peak feeder load and strain under five extreme 48h weekends. Charts
-        print with Export / print — use them for data-driven A/B decisions
+        print with Export / print; use them for data-driven A/B decisions
         alongside the carbon case above. Not a full 8760h weather year.
       </p>
 

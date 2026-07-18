@@ -26,6 +26,13 @@ const OUT =
 
   await page.goto(BASE, { waitUntil: "networkidle", timeout: 60000 });
   await page.waitForTimeout(3500);
+
+  // Landing screen (if present): enter the app first.
+  const getStarted = page.getByText("Get Started", { exact: true });
+  if (await getStarted.count()) {
+    await getStarted.first().click();
+    await page.waitForTimeout(2000);
+  }
   await shot("1-map");
 
   // 1. Place the building.
@@ -41,16 +48,16 @@ const OUT =
   await page.waitForTimeout(500);
 
   // 3. Run the stress test.
-  await page.getByText("Run heat-wave stress test").click();
+  await page.getByText(/Run (heat-wave stress test|year stress)/).first().click();
   await page.waitForSelector("text=PEAK GRID STRAIN", { timeout: 30000 });
   await page.waitForTimeout(1000);
   await shot("4-stress");
 
   // 4. Open the memo.
-  await page.waitForSelector("text=View memo", { timeout: 30000 });
-  await page.getByText("View memo").click();
-  await page.waitForSelector("text=COMPARATIVE DEVELOPMENT MEMO", {
-    timeout: 15000,
+  await page.waitForSelector("text=/View (year )?memo/", { timeout: 90000 });
+  await page.getByText(/View (year )?memo/).first().click();
+  await page.waitForSelector("text=/(COMPARATIVE DEVELOPMENT|YEAR-PACK PORTFOLIO) MEMO/i", {
+    timeout: 20000,
   });
   await page.waitForTimeout(600);
   await shot("5-memo");

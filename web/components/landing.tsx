@@ -24,7 +24,7 @@ export function Landing({ onGetStarted, busy = false }: LandingProps) {
             </p>
           </div>
           <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/80 sm:text-[16px]">
-            Know what to build before you build it — stress-test hotel and
+            Know what to build before you build it: stress-test hotel and
             homestay options on a real Toronto site.
           </p>
           <button

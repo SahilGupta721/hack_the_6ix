@@ -166,7 +166,8 @@ export function SiteMap({
         paint: {
           "fill-extrusion-color": "#9aa5b1",
           "fill-extrusion-height": 0,
-          "fill-extrusion-opacity": 0.92,
+          "fill-extrusion-opacity": 0.96,
+          "fill-extrusion-vertical-gradient": true,
         },
       });
       map.addLayer({
@@ -174,10 +175,11 @@ export function SiteMap({
         type: "fill-extrusion",
         source: "building",
         paint: {
-          "fill-extrusion-color": "#ffffff",
+          "fill-extrusion-color": "#f4f8fc",
           "fill-extrusion-height": 0,
           "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 0.38,
+          "fill-extrusion-opacity": 0.55,
+          "fill-extrusion-vertical-gradient": true,
         },
       });
 
@@ -244,7 +246,7 @@ export function SiteMap({
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
 
-      {/* Single top chrome — search left, site chip right of it; no stacked text */}
+      {/* Single top chrome: search left, site chip right of it; no stacked text */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3">
         <div className="pointer-events-auto min-w-0 flex-1 pl-[300px]">
           <LocationSearch onSelect={onSearchPlace} />
@@ -270,7 +272,7 @@ export function SiteMap({
       <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 max-w-lg -translate-x-1/2 rounded bg-ink/75 px-3 py-1.5 text-center text-[10px] leading-snug text-white/90">
         {sitesNote?.trim()
           ? sitesNote
-          : "Green outlines = empty OSM land (parking / brownfield / open). Click a parcel to build — not on houses or roads."}
+          : "Green outlines = empty OSM land (parking / brownfield / open). Click a parcel to build (not on houses or roads)."}
       </p>
     </div>
   );
@@ -292,6 +294,11 @@ function LayersIcon() {
 
 function syncBuilding(map: maplibregl.Map, building: BuildingSpec | null) {
   if (!map.getLayer("building-mass") || !map.getLayer("building-shell")) return;
+  // Zero-height extrusions still paint a flat slab; hide the layers instead.
+  const visibility = building ? "visible" : "none";
+  map.setLayoutProperty("building-mass", "visibility", visibility);
+  map.setLayoutProperty("building-shell", "visibility", visibility);
+  if (!building) return;
   const total = building ? building.floors * 3.4 : 0;
   const lower = total * 0.55;
   const colour = building ? STRUCTURE_COLOUR[building.structure] : "#9aa5b1";

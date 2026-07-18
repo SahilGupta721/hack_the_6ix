@@ -38,7 +38,7 @@ export function LocationSearch({ onSelect }: LocationSearchProps) {
         }
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
-        setError("Search failed — is the API on :8000?");
+        setError("Search failed. Is the API on :8000?");
         setResults([]);
       } finally {
         if (!controller.signal.aborted) setLoading(false);

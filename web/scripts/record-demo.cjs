@@ -16,6 +16,11 @@ const OUT = process.argv[2] || "/tmp/innsight-demo";
 
   await page.goto("http://localhost:3000/", { waitUntil: "networkidle" });
   await page.waitForTimeout(4500);
+  const getStarted = page.getByText("Get Started", { exact: true });
+  if (await getStarted.count()) {
+    await getStarted.first().click();
+    await page.waitForTimeout(2500);
+  }
 
   await page.getByText("Place building at 45 The Esplanade").click();
   await page.waitForTimeout(2500);
@@ -25,16 +30,16 @@ const OUT = process.argv[2] || "/tmp/innsight-demo";
   await page.getByText("Option A", { exact: false }).first().click();
   await page.waitForTimeout(1500);
 
-  await page.getByText("Run heat-wave stress test").click();
+  await page.getByText(/Run (heat-wave stress test|year stress)/).first().click();
   await page.waitForSelector("text=PEAK GRID STRAIN", { timeout: 30000 });
   await page.waitForTimeout(3500);
 
   await page.getByText("Option B: Mass Timber", { exact: false }).first().click();
   await page.waitForTimeout(2000);
 
-  await page.waitForSelector("text=View memo", { timeout: 30000 });
-  await page.getByText("View memo").click();
-  await page.waitForSelector("text=COMPARATIVE DEVELOPMENT MEMO", { timeout: 15000 });
+  await page.waitForSelector("text=/View (year )?memo/", { timeout: 90000 });
+  await page.getByText(/View (year )?memo/).first().click();
+  await page.waitForSelector("text=/(COMPARATIVE DEVELOPMENT|YEAR-PACK PORTFOLIO) MEMO/i", { timeout: 20000 });
   await page.waitForTimeout(3000);
   await page.mouse.wheel(0, 500);
   await page.waitForTimeout(2500);

@@ -67,3 +67,7 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# reference material from other projects, never commit
+/help/
+/*.png

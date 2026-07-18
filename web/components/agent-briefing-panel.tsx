@@ -38,7 +38,7 @@ export function AgentBriefingPanel({
       </div>
       {fallbackReason && (
         <p className="mb-2 text-[10px] leading-snug text-amber/90">
-          Gemini unavailable — {fallbackReason}
+          Gemini unavailable: {fallbackReason}
         </p>
       )}
 
@@ -58,7 +58,7 @@ export function AgentBriefingPanel({
         {synthesis.recommendation_alignment}
         {synthesis.reinforces_sim
           ? " Specialists reinforce the sim pick."
-          : " Specialists challenge the sim pick — review open questions."}
+          : " Specialists challenge the sim pick; review open questions."}
       </p>
 
       <div className="flex flex-wrap gap-1.5">

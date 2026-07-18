@@ -11,12 +11,14 @@ export interface ActiveSite {
 export const SITE = {
   name: "45 The Esplanade",
   projectTitle: "Project: 40-Room Hotel Initiative",
-  lng: -79.3744,
-  lat: 43.6476,
-  zoom: 17.2,
+  lng: -79.37361,
+  lat: 43.64736,
+  zoom: 17.6,
 } as const;
 
-// Illustrative parcel outline around the site centre (not permit-ready).
+// Parcel aligned to the open lot visible on the City of Toronto 2025
+// orthophoto beside The Esplanade (corners traced from the 8 cm imagery,
+// following the diagonal street grid). Illustrative, not permit-ready.
 export const SITE_POLYGON: GeoJSON.Feature<GeoJSON.Polygon> = {
   type: "Feature",
   properties: { id: "default", label: SITE.name },
@@ -24,11 +26,11 @@ export const SITE_POLYGON: GeoJSON.Feature<GeoJSON.Polygon> = {
     type: "Polygon",
     coordinates: [
       [
-        [-79.37485, 43.64775],
-        [-79.37405, 43.64795],
-        [-79.37375, 43.64745],
-        [-79.37455, 43.64725],
-        [-79.37485, 43.64775],
+        [-79.373902, 43.647438],
+        [-79.373419, 43.647523],
+        [-79.373322, 43.647275],
+        [-79.373805, 43.64719],
+        [-79.373902, 43.647438],
       ],
     ],
   },

@@ -110,27 +110,17 @@ export default function HomePage() {
   const [overlay, setOverlay] = useState<Overlay>("none");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const [activeSite, setActiveSite] = useState<ActiveSite>(() => {
-    const base = defaultActiveSite();
-    const first = generateFallbackSites(base.lng, base.lat)[0];
-    if (!first) return base;
-    return {
-      name: base.name,
-      lng: first.center.lng,
-      lat: first.center.lat,
-      zoom: base.zoom,
-      polygon: first.polygon,
-    };
-  });
+  // Default framing stays on the curated, imagery-aligned Esplanade parcel;
+  // OSM candidates render as green options and only a click switches to one.
+  const [activeSite, setActiveSite] = useState<ActiveSite>(() =>
+    defaultActiveSite(),
+  );
   const [candidates, setCandidates] = useState<CandidateSite[]>(() => {
     const site = defaultActiveSite();
     return generateFallbackSites(site.lng, site.lat);
   });
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(
-    () => {
-      const site = defaultActiveSite();
-      return generateFallbackSites(site.lng, site.lat)[0]?.id ?? null;
-    },
+    null,
   );
   const [sitesNote, setSitesNote] = useState(
     "Loading empty parcels from OpenStreetMap…",
@@ -199,36 +189,46 @@ export default function HomePage() {
   }, [overlay]);
 
   const applyEmptySites = useCallback(
-    async (placeName: string, lng: number, lat: number, zoom = 17.2) => {
-      appendLog(`Finding empty parcels near ${placeName}…`);
+    async (
+      placeName: string,
+      lng: number,
+      lat: number,
+      zoom = 17.2,
+      jumpToFirst = true,
+    ) => {
+      appendLog(`Finding empty parcels near ${placeName}...`);
       const { sites, note, fromOsm } = await fetchEmptySites(lng, lat);
       const first = sites[0];
       setCandidates(sites);
-      setSelectedCandidateId(first?.id ?? null);
       setSitesNote(note);
-      setActiveSite({
-        name: placeName,
-        lng: first?.center.lng ?? lng,
-        lat: first?.center.lat ?? lat,
-        zoom,
-        polygon: first?.polygon ?? defaultActiveSite().polygon,
-      });
-      setPlaced(false);
-      invalidate();
+      if (jumpToFirst) {
+        // A search is an explicit move: fly to the first found parcel.
+        setSelectedCandidateId(first?.id ?? null);
+        setActiveSite({
+          name: placeName,
+          lng: first?.center.lng ?? lng,
+          lat: first?.center.lat ?? lat,
+          zoom,
+          polygon: first?.polygon ?? defaultActiveSite().polygon,
+        });
+        setPlaced(false);
+        invalidate();
+      }
       appendLog(
         fromOsm
-          ? `Found ${sites.length} empty OSM parcels (parking / brownfield / open land) — click green to select.`
-          : `No OSM empty land nearby — ${sites.length} approximate pads. Check imagery before placing.`,
+          ? `Found ${sites.length} empty OSM parcels (parking / brownfield / open land); click green to select.`
+          : `No OSM empty land nearby; ${sites.length} approximate pads. Check imagery before placing.`,
       );
     },
     [appendLog, invalidate],
   );
 
-  // Load real empty sites for the default Toronto demo once API is up.
+  // Load candidate parcels around the default Toronto site without moving
+  // the camera off the curated demo framing.
   useEffect(() => {
     if (!entered) return;
     const base = defaultActiveSite();
-    void applyEmptySites(base.name, base.lng, base.lat, base.zoom);
+    void applyEmptySites(base.name, base.lng, base.lat, base.zoom, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entered]);
 

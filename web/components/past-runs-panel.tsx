@@ -102,7 +102,7 @@ export function PastRunsPanel({
                 <p className="mt-1.5 text-[10.5px] leading-snug text-text-soft">
                   Generators: memo{" "}
                   <span className="font-semibold text-text-strong">
-                    {run.narrative_generator ?? "—"}
+                    {run.narrative_generator ?? "n/a"}
                   </span>
                   {run.briefing_generator
                     ? ` · agents ${run.briefing_generator}`
