@@ -12,10 +12,20 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 *.egg-info/
+*.tsbuildinfo
+*.mdc
 
 # env — never commit secrets (single file: repo-root `.env`)
 .env
 .env.*
+
+# test / QA artifacts
+coverage/
+htmlcov/
+playwright-report/
+test-results/
+blob-report/
+.nyc_output/
 
 # internal docs, never public
 PRD*.md
@@ -34,7 +44,7 @@ TECHNICAL_ARCHITECTURE.md
 ARCHITECTURE.md
 docs/
 
-# agent/tooling files, never public
+# agent/tooling files, never public (legacy)
 CLAUDE.md
 COWORK*.md
 AGENTS.md
@@ -42,6 +52,11 @@ AGENTS.md
 .windsurfrules
 .claude/
 .cowork/
+
+# Cursor — keep committed project rules; ignore local/state
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 
 # internal reference material
 imgs/
@@ -52,3 +67,5 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+*.swp
+*~

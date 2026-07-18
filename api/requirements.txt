@@ -8,4 +8,4 @@ matplotlib
 pytest
 google-genai
 pymongo
--e ../model
+-e ./model
