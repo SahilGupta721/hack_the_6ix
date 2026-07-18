@@ -415,6 +415,9 @@ export default function HomePage() {
       if (runToken.current === token) setRunning(false);
     }
   }, [
+    activeSite.lat,
+    activeSite.lng,
+    activeSite.name,
     appendLog,
     auth.loggedIn,
     auth.sub,

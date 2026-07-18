@@ -8,7 +8,13 @@ from dataclasses import asdict
 from typing import Any, Callable
 
 from innsight_model.memo import build_year_memo, generate_narrative
-from innsight_model.sim import BuildingConfig, Comparison, SCENARIOS, compare
+from innsight_model.sim import (
+    BuildingConfig,
+    Comparison,
+    SCENARIOS,
+    StressScenario,
+    compare,
+)
 
 from app.agents.gather import gather_all
 from app.agents.llm import LLMProvider, get_provider, truncate_matrix_for_llm
@@ -94,11 +100,13 @@ def _run_specialists(
 def _parallel_compares(
     config_a: BuildingConfig,
     config_b: BuildingConfig,
+    scenarios: dict[str, StressScenario] | None = None,
 ) -> dict[str, Comparison]:
-    keys = [k for k in YEAR_SCENARIO_KEYS if k in SCENARIOS]
+    pack = scenarios if scenarios is not None else SCENARIOS
+    keys = [k for k in YEAR_SCENARIO_KEYS if k in pack]
 
     def _one(key: str) -> tuple[str, Comparison]:
-        return key, compare(config_a, config_b, SCENARIOS[key])
+        return key, compare(config_a, config_b, pack[key])
 
     out: dict[str, Comparison] = {}
     with ThreadPoolExecutor(max_workers=max(1, len(keys))) as pool:
@@ -118,15 +126,31 @@ async def run_briefing(
     hvac_b: str = "heat_pump",
     include_agents: list[str] | None = None,
     provider: LLMProvider | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
 ) -> BriefingResponse:
-    if scenario not in SCENARIOS:
+    from app.climate_extremes import fetch_location_year_scenarios
+
+    pack: dict[str, StressScenario] = dict(SCENARIOS)
+    climate_meta: dict[str, Any] | None = None
+    if lat is not None and lng is not None:
+        loc = await fetch_location_year_scenarios(lat, lng)
+        pack = loc["scenarios"]
+        climate_meta = loc["meta"]
+
+    if scenario not in pack:
         raise ValueError(f"unknown scenario: {scenario}")
 
     config_a, config_b = _build_configs(
         building_type, rooms, structure_a, hvac_a, structure_b, hvac_b
     )
-    comparison = compare(config_a, config_b, SCENARIOS[scenario])
+    comparison = compare(config_a, config_b, pack[scenario])
     ctx = await gather_all(comparison)
+    if climate_meta:
+        env = ctx.setdefault("environment", {})
+        env["heatwave_peak_c"] = climate_meta.get("heatwave_peak_c")
+        env["heatwave_source"] = climate_meta.get("source")
+        env["climate_meta"] = climate_meta
 
     llm, fallback_reason = (provider, None) if provider is not None else get_provider()
     include = include_agents or ALL_AGENT_IDS
@@ -155,29 +179,47 @@ async def run_year_briefing(
     include_agents: list[str] | None = None,
     provider: LLMProvider | None = None,
     site_name: str = "45 The Esplanade, Toronto",
+    lat: float | None = None,
+    lng: float | None = None,
 ) -> YearBriefingResponse:
     """Run all year scenarios in parallel; one gather; ~8 Gemini calls total."""
+    from app.climate_extremes import fetch_location_year_scenarios
+
     config_a, config_b = _build_configs(
         building_type, rooms, structure_a, hvac_a, structure_b, hvac_b
     )
-    comparisons = _parallel_compares(config_a, config_b)
+
+    climate_meta: dict[str, Any] | None = None
+    pack: dict[str, StressScenario] = dict(SCENARIOS)
+    if lat is not None and lng is not None:
+        loc = await fetch_location_year_scenarios(lat, lng)
+        pack = loc["scenarios"]
+        climate_meta = loc["meta"]
+
+    comparisons = _parallel_compares(config_a, config_b, pack)
     if BASELINE_SCENARIO not in comparisons:
         raise ValueError(f"missing baseline scenario {BASELINE_SCENARIO}")
 
     primary = comparisons[BASELINE_SCENARIO]
     matrix_summary = build_matrix_summary(comparisons)
+    if climate_meta:
+        matrix_summary["climate"] = climate_meta
+
     ctx = await gather_all(primary)
     ctx["matrix_summary"] = truncate_matrix_for_llm(matrix_summary)
     ctx["year_pack"] = True
+    if climate_meta:
+        env = ctx.setdefault("environment", {})
+        env["heatwave_peak_c"] = climate_meta.get("heatwave_peak_c")
+        env["heatwave_source"] = climate_meta.get("source")
+        env["climate_meta"] = climate_meta
 
     llm, fallback_reason = (provider, None) if provider is not None else get_provider()
     include = include_agents or ALL_AGENT_IDS
     briefs = _run_specialists(llm, ctx, include)
     synthesis = synthesize_year_boss(llm, matrix_summary, briefs, ctx["comparison"])
 
-    # Portfolio memo: one narrative over the matrix (not 5 memos).
     memo_body = build_year_memo(comparisons, site_name, matrix_summary)
-    # Skip Gemini narrative when probe already failed or provider is fallback.
     api_key = None
     if llm.name != "deterministic-fallback" and not fallback_reason:
         api_key = (os.environ.get("GEMINI_API_KEY") or "").strip() or None
@@ -186,6 +228,8 @@ async def run_year_briefing(
     if fallback_reason and not narrative.get("fallback_reason"):
         narrative["fallback_reason"] = fallback_reason
     memo_body["narrative"] = narrative
+    if climate_meta:
+        memo_body["climate"] = climate_meta
 
     scenarios_payload = {
         key: _serialize_comparison(comparisons[key]) for key in YEAR_SCENARIO_KEYS
@@ -201,4 +245,5 @@ async def run_year_briefing(
         generator=llm.name,
         fallback_reason=fallback_reason,
         comparison=_serialize_comparison(primary),
+        climate=climate_meta,
     )

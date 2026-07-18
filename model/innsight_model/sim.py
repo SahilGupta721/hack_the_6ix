@@ -217,6 +217,27 @@ def _weekend_temps(day1: tuple[float, float], day2: tuple[float, float]) -> tupl
     return tuple(_day_temps(*day1) + _day_temps(*day2))
 
 
+def weekend_from_day_extremes(
+    day1: tuple[float, float],
+    day2: tuple[float, float],
+) -> tuple[float, ...]:
+    """Build a 48-hour outdoor dry-bulb curve from two (night_low, day_high) days."""
+    return _weekend_temps(day1, day2)
+
+
+def make_stress_scenario(
+    name: str,
+    occupancy: float,
+    day1: tuple[float, float],
+    day2: tuple[float, float],
+) -> StressScenario:
+    return StressScenario(
+        name=name,
+        occupancy=occupancy,
+        hourly_temps_c=weekend_from_day_extremes(day1, day2),
+    )
+
+
 # Toronto stress weekends, hour 0 = Saturday midnight. The heat-wave profile
 # peaks at 36.2 C, matching the documented July 14, 2026 Toronto heat event
 # (benchmarks.HEATWAVE_EVENT_PEAK_C carries the citation).
