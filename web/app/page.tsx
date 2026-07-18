@@ -8,10 +8,16 @@ import { ProfilesPanel } from "@/components/profiles-panel";
 import { StressView } from "@/components/stress-view";
 import { TopBar } from "@/components/top-bar";
 import { fetchComparison, fetchMemo } from "@/lib/api";
+import { FLAGS } from "@/lib/flags";
 import type { BuildingType, Comparison, Memo, OptionKey } from "@/lib/types";
 
 const SiteMap = dynamic(
   () => import("@/components/site-map").then((m) => m.SiteMap),
+  { ssr: false },
+);
+
+const VoiceController = dynamic(
+  () => import("@/components/voice-controller").then((m) => m.VoiceController),
   { ssr: false },
 );
 
@@ -110,6 +116,26 @@ export default function HomePage() {
     }
   }, [appendLog, buildingType, rooms]);
 
+  const explainMemo = useCallback(() => {
+    if (!memo) {
+      return "No memo yet. Run the stress test first and I will walk you through it.";
+    }
+    return `${memo.narrative.summary} ${memo.narrative.reasoning.join(" ")}`;
+  }, [memo]);
+
+  const handleVoiceType = useCallback(
+    (type: BuildingType) => {
+      const defaults: Record<BuildingType, number> = {
+        homestay: 6,
+        boutique: 40,
+        tower: 200,
+      };
+      setPlaced(true);
+      handleTypeChange(type, defaults[type]);
+    },
+    [handleTypeChange],
+  );
+
   const building = placed
     ? {
         structure: option === "A" ? ("concrete" as const) : ("mass_timber" as const),
@@ -120,6 +146,15 @@ export default function HomePage() {
   return (
     <div className="flex h-full flex-col">
       <TopBar />
+      {FLAGS.voice && (
+        <VoiceController
+          onSetOption={handleOptionChange}
+          onSetRooms={handleRoomsChange}
+          onSetType={handleVoiceType}
+          onRunStressTest={handleRunStressTest}
+          explainMemo={explainMemo}
+        />
+      )}
       <div className="relative flex min-h-0 flex-1">
         <DesignPanel
           placed={placed}
