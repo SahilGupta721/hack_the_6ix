@@ -109,7 +109,10 @@ def synthesize_boss(
             "recommendation_alignment, reinforces_sim, open_questions, summary.\n\n"
             + dumps_context(payload)
         )
-        result = provider.complete_json(system, user, BossSynthesis)
+        from app.agents.ai_energy import call_label
+
+        with call_label("boss"):
+            result = provider.complete_json(system, user, BossSynthesis)
         return BossSynthesis.model_validate(result.model_dump())
     except Exception:
         return stub
@@ -238,7 +241,10 @@ def synthesize_year_boss(
             "Return BossSynthesis JSON for the year portfolio.\n\n"
             + dumps_context(payload)
         )
-        result = provider.complete_json(system, user, BossSynthesis)
+        from app.agents.ai_energy import call_label
+
+        with call_label("year_boss"):
+            result = provider.complete_json(system, user, BossSynthesis)
         return BossSynthesis.model_validate(result.model_dump())
     except Exception:
         return stub

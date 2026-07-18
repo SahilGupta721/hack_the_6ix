@@ -401,12 +401,27 @@ def generate_narrative(
             ),
         )
         narrative = MemoNarrative.model_validate_json(response.text)
-        return {
+        usage = getattr(response, "usage_metadata", None)
+        prompt_tokens = int(getattr(usage, "prompt_token_count", None) or 0) if usage else 0
+        completion_tokens = (
+            int(getattr(usage, "candidates_token_count", None) or 0) if usage else 0
+        )
+        total_tokens = int(getattr(usage, "total_token_count", None) or 0) if usage else 0
+        if total_tokens <= 0:
+            total_tokens = prompt_tokens + completion_tokens
+        out: dict[str, Any] = {
             "summary": narrative.summary,
             "reasoning": narrative.reasoning,
             "caveats": narrative.caveats,
             "generator": GEMINI_MODEL,
         }
+        if total_tokens > 0:
+            out["token_usage"] = {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+            }
+        return out
     except Exception as exc:
         reason = str(exc)
         if "RESOURCE_EXHAUSTED" in reason or "429" in reason:

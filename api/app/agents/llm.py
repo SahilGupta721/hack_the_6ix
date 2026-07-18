@@ -65,6 +65,9 @@ class GeminiProvider:
                     temperature=0.2,
                 ),
             )
+        from app.agents.ai_energy import record_gemini_usage
+
+        record_gemini_usage(response, model=GEMINI_MODEL)
         return schema.model_validate_json(response.text)
 
 
@@ -83,11 +86,14 @@ def get_provider(api_key: str | None = None) -> tuple[LLMProvider, str | None]:
         class _Probe(BaseModel):
             ok: bool
 
-        provider.complete_json(
-            "Reply with JSON only.",
-            'Return {"ok": true}.',
-            _Probe,
-        )
+        from app.agents.ai_energy import call_label
+
+        with call_label("probe"):
+            provider.complete_json(
+                "Reply with JSON only.",
+                'Return {"ok": true}.',
+                _Probe,
+            )
         return provider, None
     except Exception as exc:
         reason = str(exc)

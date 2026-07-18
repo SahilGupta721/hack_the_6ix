@@ -98,6 +98,9 @@ def test_fallback_briefing_has_all_specialists_and_boss() -> None:
     assert result.comparison["recommended"] in ("A", "B")
     assert "option_a" in result.comparison
     assert "option_b" in result.comparison
+    assert result.ai_energy is not None
+    assert result.ai_energy["call_count"] == 0
+    assert result.ai_energy["estimate"] is True
 
 
 def test_include_agents_subset() -> None:
@@ -241,6 +244,9 @@ def test_year_pack_fallback() -> None:
     assert result.memo["portfolio_table"][0].get("hourly_kw_b")
     assert "environmental_summary" in result.memo
     assert result.memo["environmental_summary"].get("climate")
+    assert result.memo["environmental_summary"].get("ai_inference")
+    assert result.ai_energy is not None
+    assert result.ai_energy["call_count"] == 0
     assert "narrative" in result.memo
     assert result.comparison["recommended"] in ("A", "B")
 

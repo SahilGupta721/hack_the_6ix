@@ -421,6 +421,16 @@ export default function HomePage() {
         `Agents… (${year.generator}): ${Object.keys(year.briefs).length} briefs + year boss.` +
           (year.fallback_reason ? ` Fallback: ${year.fallback_reason}` : ""),
       );
+      const ai = year.ai_energy ?? year.memo.environmental_summary?.ai_inference;
+      if (ai && ai.call_count > 0) {
+        appendLog(
+          `Agent footprint (est.): ${ai.call_count} calls, ${ai.total_tokens.toLocaleString("en-CA")} tokens, ${ai.est_wh.toFixed(3)} Wh, ${ai.est_gco2e.toFixed(3)} gCO2e (${ai.intensity_source} grid).`,
+        );
+      } else if (ai) {
+        appendLog(
+          "Agent footprint: no LLM tokens (deterministic stubs / fallback).",
+        );
+      }
       const flips = year.matrix_summary.flip_scenarios;
       appendLog(
         `Portfolio: baseline ${year.matrix_summary.baseline_recommended}` +

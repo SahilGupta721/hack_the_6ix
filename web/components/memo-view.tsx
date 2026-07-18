@@ -189,6 +189,44 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
                 .
               </p>
             )}
+            {(env?.ai_inference || memo.environmental_summary?.ai_inference) && (
+              <div className="mt-2.5 border-t border-[#c8e6d8] pt-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#0d7a55]">
+                  Agent inference footprint (this run)
+                </p>
+                {(() => {
+                  const ai =
+                    env?.ai_inference ??
+                    memo.environmental_summary?.ai_inference;
+                  if (!ai) return null;
+                  return (
+                    <>
+                      <div className="mt-1.5 grid grid-cols-2 gap-2 text-[12px] sm:grid-cols-4">
+                        <EnvStat label="LLM calls" value={String(ai.call_count)} />
+                        <EnvStat
+                          label="Tokens"
+                          value={ai.total_tokens.toLocaleString("en-CA")}
+                        />
+                        <EnvStat
+                          label="Est. energy"
+                          value={`${ai.est_wh.toFixed(3)} Wh`}
+                        />
+                        <EnvStat
+                          label="Est. CO₂e"
+                          value={`${ai.est_gco2e.toFixed(3)} g`}
+                        />
+                      </div>
+                      <p className="mt-1.5 text-[10.5px] leading-snug text-text-soft">
+                        {ai.intensity_source === "live"
+                          ? `Live grid intensity ${ai.grid_intensity_g_per_kwh} gCO2e/kWh`
+                          : `TAF Ontario avg ${ai.grid_intensity_g_per_kwh} gCO2e/kWh`}
+                        . Estimate — {ai.method_note}
+                      </p>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </section>
         )}
 

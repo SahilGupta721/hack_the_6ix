@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
@@ -16,6 +17,12 @@ from innsight_model.sim import (
     compare,
 )
 
+from app.agents.ai_energy import (
+    AiEnergySession,
+    record_token_usage,
+    resolve_grid_intensity,
+    track_ai_energy,
+)
 from app.agents.gather import DEFAULT_SITE_LAT, DEFAULT_SITE_LNG, gather_all
 from app.agents.llm import LLMProvider, get_provider, truncate_matrix_for_llm
 from app.agents.matrix import (
@@ -48,6 +55,30 @@ SPECIALISTS: dict[str, Callable[[LLMProvider, dict[str, Any]], AgentBrief]] = {
 }
 
 ALL_AGENT_IDS = list(SPECIALISTS.keys())
+
+
+def _grid_from_ctx(ctx: dict[str, Any]) -> tuple[float, str]:
+    env = ctx.get("environment") or {}
+    return resolve_grid_intensity(env.get("live_grid"))
+
+
+def _finalize_ai_energy(
+    session: AiEnergySession,
+    *,
+    generator: str,
+    narrative: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if narrative:
+        usage = narrative.pop("token_usage", None)
+        if usage:
+            record_token_usage(
+                call_id="memo_narrative",
+                model=str(narrative.get("generator") or generator),
+                prompt_tokens=int(usage.get("prompt_tokens") or 0),
+                completion_tokens=int(usage.get("completion_tokens") or 0),
+                total_tokens=int(usage.get("total_tokens") or 0) or None,
+            )
+    return session.summarize(default_model=generator)
 
 
 def _serialize_comparison(comparison: Comparison) -> dict[str, Any]:
@@ -92,13 +123,15 @@ def _run_specialists(
     include: list[str],
 ) -> dict[str, AgentBrief]:
     selected = [aid for aid in include if aid in SPECIALISTS]
+    # Propagate ai_energy ContextVars into worker threads.
+    ctx_copy = contextvars.copy_context()
 
     def _one(agent_id: str) -> tuple[str, AgentBrief]:
-        return agent_id, SPECIALISTS[agent_id](provider, ctx)
+        return ctx_copy.run(SPECIALISTS[agent_id], provider, ctx), agent_id
 
     briefs: dict[str, AgentBrief] = {}
     with ThreadPoolExecutor(max_workers=max(1, len(selected))) as pool:
-        for agent_id, brief in pool.map(_one, selected):
+        for brief, agent_id in pool.map(_one, selected):
             briefs[agent_id] = brief
     return briefs
 
@@ -225,8 +258,15 @@ async def run_briefing(
 
     llm, fallback_reason = (provider, None) if provider is not None else get_provider()
     include = include_agents or ALL_AGENT_IDS
-    briefs = _run_specialists(llm, ctx, include)
-    synthesis: BossSynthesis = synthesize_boss(llm, ctx["comparison"], briefs)
+
+    intensity, intensity_source = _grid_from_ctx(ctx)
+    with track_ai_energy() as energy:
+        energy.configure_grid(intensity, intensity_source)
+        # Probe already ran outside the session when get_provider() was called;
+        # only specialist + boss tokens are attributed to this briefing.
+        briefs = _run_specialists(llm, ctx, include)
+        synthesis: BossSynthesis = synthesize_boss(llm, ctx["comparison"], briefs)
+        ai_energy = energy.summarize(default_model=llm.name)
 
     return BriefingResponse(
         comparison=_serialize_comparison(comparison),
@@ -234,6 +274,7 @@ async def run_briefing(
         synthesis=synthesis,
         generator=llm.name,
         fallback_reason=fallback_reason,
+        ai_energy=ai_energy,
     )
 
 
@@ -286,28 +327,38 @@ async def run_year_briefing(
 
     llm, fallback_reason = (provider, None) if provider is not None else get_provider()
     include = include_agents or ALL_AGENT_IDS
-    briefs = _run_specialists(llm, ctx, include)
-    synthesis = synthesize_year_boss(llm, matrix_summary, briefs, ctx["comparison"])
 
-    memo_body = build_year_memo(comparisons, site_name, matrix_summary)
-    memo_body.setdefault("environmental_summary", {})
-    memo_body["environmental_summary"]["climate"] = climate_meta
-    memo_body["environmental_summary"]["site"] = {
-        "name": site_name,
-        "lat": site_lat,
-        "lng": site_lng,
-    }
+    intensity, intensity_source = _grid_from_ctx(ctx)
+    with track_ai_energy() as energy:
+        energy.configure_grid(intensity, intensity_source)
+        briefs = _run_specialists(llm, ctx, include)
+        synthesis = synthesize_year_boss(
+            llm, matrix_summary, briefs, ctx["comparison"]
+        )
 
-    api_key = None
-    if llm.name != "deterministic-fallback" and not fallback_reason:
-        api_key = (os.environ.get("GEMINI_API_KEY") or "").strip() or None
+        memo_body = build_year_memo(comparisons, site_name, matrix_summary)
+        memo_body.setdefault("environmental_summary", {})
+        memo_body["environmental_summary"]["climate"] = climate_meta
+        memo_body["environmental_summary"]["site"] = {
+            "name": site_name,
+            "lat": site_lat,
+            "lng": site_lng,
+        }
 
-    narrative = generate_narrative(memo_body, api_key)
-    if fallback_reason and not narrative.get("fallback_reason"):
-        narrative["fallback_reason"] = fallback_reason
-    memo_body["narrative"] = narrative
-    if climate_meta:
-        memo_body["climate"] = climate_meta
+        api_key = None
+        if llm.name != "deterministic-fallback" and not fallback_reason:
+            api_key = (os.environ.get("GEMINI_API_KEY") or "").strip() or None
+
+        narrative = generate_narrative(memo_body, api_key)
+        if fallback_reason and not narrative.get("fallback_reason"):
+            narrative["fallback_reason"] = fallback_reason
+        ai_energy = _finalize_ai_energy(
+            energy, generator=llm.name, narrative=narrative
+        )
+        memo_body["narrative"] = narrative
+        memo_body["environmental_summary"]["ai_inference"] = ai_energy
+        if climate_meta:
+            memo_body["climate"] = climate_meta
 
     scenarios_payload = {
         key: _serialize_comparison(comparisons[key])
@@ -325,4 +376,5 @@ async def run_year_briefing(
         fallback_reason=fallback_reason,
         comparison=_serialize_comparison(primary),
         climate=climate_meta,
+        ai_energy=ai_energy,
     )

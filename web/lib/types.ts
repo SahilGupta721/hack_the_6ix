@@ -139,6 +139,7 @@ export interface Memo {
     note?: string;
     climate?: ClimateMeta;
     site?: { name?: string; lat?: number; lng?: number };
+    ai_inference?: AiEnergyFootprint | null;
   };
   matrix_summary?: {
     flip_scenarios?: string[];
@@ -206,6 +207,7 @@ export interface Briefing {
   synthesis: BossSynthesis;
   generator: string;
   fallback_reason?: string | null;
+  ai_energy?: AiEnergyFootprint | null;
 }
 
 export interface MatrixSummary {
@@ -238,6 +240,32 @@ export interface ClimateMeta {
   >;
 }
 
+export interface AiEnergyCall {
+  call_id: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  est_wh: number;
+  est_gco2e: number;
+}
+
+export interface AiEnergyFootprint {
+  calls: AiEnergyCall[];
+  call_count: number;
+  total_tokens: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  est_wh: number;
+  est_gco2e: number;
+  grid_intensity_g_per_kwh: number;
+  intensity_source: string;
+  model: string;
+  estimate: boolean;
+  method_note: string;
+  status?: string;
+}
+
 export interface YearBriefing {
   scenarios: Record<string, Comparison>;
   matrix_summary: MatrixSummary;
@@ -248,4 +276,5 @@ export interface YearBriefing {
   fallback_reason?: string | null;
   comparison: Comparison;
   climate?: ClimateMeta | null;
+  ai_energy?: AiEnergyFootprint | null;
 }

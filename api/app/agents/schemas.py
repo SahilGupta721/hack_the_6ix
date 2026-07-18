@@ -40,6 +40,7 @@ class BriefingResponse(BaseModel):
     synthesis: BossSynthesis
     generator: str
     fallback_reason: str | None = None
+    ai_energy: dict[str, Any] | None = None
 
 
 class YearBriefingResponse(BaseModel):
@@ -55,3 +56,4 @@ class YearBriefingResponse(BaseModel):
     # Primary comparison (heat-wave) for clients that still expect one A/B view.
     comparison: dict[str, Any]
     climate: dict[str, Any] | None = None
+    ai_energy: dict[str, Any] | None = None

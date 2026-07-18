@@ -36,7 +36,10 @@ def run_specialist(
             f"(live/cached/benchmark/heuristic/estimate).\n\nContext:\n"
             f"{dumps_context(context)}"
         )
-        result = provider.complete_json(system, user, AgentBrief)
+        from app.agents.ai_energy import call_label
+
+        with call_label(agent_id):
+            result = provider.complete_json(system, user, AgentBrief)
         brief = AgentBrief.model_validate(result.model_dump())
         brief.agent_id = agent_id
         brief.title = title
