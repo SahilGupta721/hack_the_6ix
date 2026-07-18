@@ -84,12 +84,16 @@ export function fetchYearBriefing(
   rooms: number,
   overrides?: OptionOverrides,
   auth0Sub?: string,
+  site?: { lat: number; lng: number; siteName?: string },
 ): Promise<YearBriefing> {
   return post<YearBriefing>("/briefing/year", {
     building_type: buildingType,
     rooms,
     ...overrides,
     ...(auth0Sub ? { auth0_sub: auth0Sub } : {}),
+    ...(site
+      ? { lat: site.lat, lng: site.lng, site_name: site.siteName }
+      : {}),
   });
 }
 

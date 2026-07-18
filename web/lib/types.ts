@@ -227,4 +227,14 @@ export interface YearBriefing {
   generator: string;
   fallback_reason?: string | null;
   comparison: Comparison;
+  climate?: {
+    source?: string;
+    fallback?: boolean;
+    heatwave_peak_c?: number;
+    deep_cold_floor_c?: number;
+    picks?: Record<
+      string,
+      { dates?: string[]; peak_c?: number; floor_c?: number }
+    >;
+  } | null;
 }

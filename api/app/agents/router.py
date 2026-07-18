@@ -20,6 +20,9 @@ class BriefingRequest(BaseModel):
     hvac_b: str = Field(default="heat_pump", pattern="^(central_gas|heat_pump)$")
     include_agents: list[str] | None = None
     auth0_sub: str | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+    site_name: str | None = None
 
 
 class YearBriefingRequest(BaseModel):
@@ -31,6 +34,9 @@ class YearBriefingRequest(BaseModel):
     hvac_b: str = Field(default="heat_pump", pattern="^(central_gas|heat_pump)$")
     include_agents: list[str] | None = None
     auth0_sub: str | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+    site_name: str | None = None
 
 
 @router.post("/briefing")
@@ -52,6 +58,8 @@ async def briefing(req: BriefingRequest) -> dict:
             structure_b=req.structure_b,
             hvac_b=req.hvac_b,
             include_agents=req.include_agents,
+            lat=req.lat,
+            lng=req.lng,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -87,6 +95,9 @@ async def briefing_year(req: YearBriefingRequest) -> dict:
             structure_b=req.structure_b,
             hvac_b=req.hvac_b,
             include_agents=req.include_agents,
+            site_name=req.site_name or "45 The Esplanade, Toronto",
+            lat=req.lat,
+            lng=req.lng,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
