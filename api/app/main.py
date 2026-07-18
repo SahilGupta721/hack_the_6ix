@@ -18,6 +18,7 @@ from innsight_model.sim import (
     run_option,
 )
 
+from app.renders import router as renders_router
 from app.stay22 import router as stay22_router
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -35,6 +36,7 @@ app.add_middleware(
 )
 
 app.include_router(stay22_router)
+app.include_router(renders_router)
 
 
 class SimulateRequest(BaseModel):

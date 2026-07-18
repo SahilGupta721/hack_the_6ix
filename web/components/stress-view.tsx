@@ -2,6 +2,7 @@
 
 import { LoadChart } from "@/components/load-chart";
 import { MarketPulse } from "@/components/market-pulse";
+import { RenderPanel } from "@/components/render-panel";
 import { StrainGauge } from "@/components/strain-gauge";
 import { FLAGS } from "@/lib/flags";
 import type { Comparison, OptionKey, OptionResult } from "@/lib/types";
@@ -104,6 +105,9 @@ function OptionColumn({
           height={170}
         />
       </div>
+      {FLAGS.renders && (
+        <RenderPanel option={result.config.label.includes("Option A") ? "A" : "B"} />
+      )}
       <div className="grid w-full grid-cols-3 gap-1.5 text-center">
         <Stat
           label="Annual energy"
