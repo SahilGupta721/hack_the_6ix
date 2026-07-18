@@ -14,6 +14,7 @@ def analyze_environment(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrie
     b = cmp_.get("option_b") or {}
     live = env.get("live_grid") or {}
     live_source = live.get("source") or "benchmark"
+    mx = ctx.get("matrix_summary") or {}
 
     findings = [
         f"Stress scenario peak outdoor temperature {env.get('heatwave_peak_c')} C "
@@ -24,6 +25,15 @@ def analyze_environment(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrie
         f"gCO2e/kWh; summer on-peak marginal "
         f"{env.get('grid_intensity_peak_g_per_kwh')} gCO2e/kWh (TAF).",
     ]
+    if mx:
+        findings = [
+            f"Year pack worst peak scenario: {mx.get('worst_peak_scenario')}; "
+            f"coldest HP stress: {mx.get('coldest_hp_stress_scenario')}.",
+            f"Heat-wave peaks: A {a.get('peak_kw')} kW ({a.get('strain_class')}) vs "
+            f"B {b.get('peak_kw')} kW ({b.get('strain_class')}).",
+            f"Flips vs heat-wave baseline: {mx.get('flip_scenarios') or 'none'}.",
+            f"Ontario grid avg {env.get('grid_intensity_avg_g_per_kwh')} gCO2e/kWh (TAF).",
+        ]
     if live.get("carbon_intensity") is not None:
         findings.append(
             f"Live Electricity Maps Ontario intensity: "
@@ -33,6 +43,8 @@ def analyze_environment(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrie
     risks = [
         "Grid strain classes are published-factor proxies, not utility telemetry.",
     ]
+    if mx:
+        risks.append("Year pack is five extreme weekends, not 8760h weather.")
     if live_source != "live":
         risks.append("Live grid intensity unavailable; carbon uses TAF benchmarks.")
 
@@ -49,6 +61,8 @@ def analyze_environment(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrie
             "peak_kw_b": b.get("peak_kw"),
             "strain_a": a.get("strain_class"),
             "strain_b": b.get("strain_class"),
+            "worst_peak_scenario": mx.get("worst_peak_scenario"),
+            "coldest_hp_stress_scenario": mx.get("coldest_hp_stress_scenario"),
         },
         risks=risks,
         sources=[
@@ -58,11 +72,20 @@ def analyze_environment(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrie
         ],
         confidence=0.7 if live_source == "live" else 0.65,
     )
+    focus = (
+        "Year-pack peaks, strain flips, and grid carbon across extreme weekends."
+        if mx
+        else "Heat-wave stress, peak kW, and grid carbon intensity under peak vs average."
+    )
     return run_specialist(
         provider,
         agent_id="environment",
         title="Environment / grid",
-        focus="Heat-wave stress, peak kW, and grid carbon intensity under peak vs average.",
-        context={"environment": env, "comparison": cmp_},
+        focus=focus,
+        context={
+            "environment": env,
+            "comparison": cmp_,
+            "matrix_summary": mx or None,
+        },
         stub=stub,
     )

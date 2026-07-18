@@ -11,6 +11,7 @@ export interface AuthState {
   enabled: boolean;
   loading: boolean;
   loggedIn: boolean;
+  sub: string | null;
   name: string | null;
   role: string | null; // architect | investor
   mfaVerified: boolean;
@@ -21,6 +22,7 @@ export function useAuth(): AuthState & { startStepUp: () => void } {
     enabled: FLAGS.auth0,
     loading: FLAGS.auth0,
     loggedIn: false,
+    sub: null,
     name: null,
     role: null,
     mfaVerified: false,
@@ -46,16 +48,17 @@ export function useAuth(): AuthState & { startStepUp: () => void } {
           Array.isArray(roles) && typeof roles[0] === "string"
             ? roles[0]
             : null;
+        const sub = typeof user.sub === "string" ? user.sub : null;
         // Unlock UI immediately — Mongo sync must not delay Get Started.
         setState((s) => ({
           ...s,
           loading: false,
           loggedIn: true,
+          sub,
           name: typeof user.name === "string" ? user.name : null,
           role,
         }));
 
-        const sub = typeof user.sub === "string" ? user.sub : null;
         if (sub) {
           void syncAuthUser({
             sub,

@@ -40,3 +40,17 @@ class BriefingResponse(BaseModel):
     synthesis: BossSynthesis
     generator: str
     fallback_reason: str | None = None
+
+
+class YearBriefingResponse(BaseModel):
+    """Multi-scenario year pack: matrix + shared agents + portfolio memo."""
+
+    scenarios: dict[str, dict[str, Any]]
+    matrix_summary: dict[str, Any]
+    briefs: dict[str, AgentBrief]
+    synthesis: BossSynthesis
+    memo: dict[str, Any]
+    generator: str
+    fallback_reason: str | None = None
+    # Primary comparison (heat-wave) for clients that still expect one A/B view.
+    comparison: dict[str, Any]

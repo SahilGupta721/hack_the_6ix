@@ -13,6 +13,7 @@ def analyze_friction(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrief:
     b = fr.get("option_b") or {}
     terms_a = a.get("terms") or {}
     terms_b = b.get("terms") or {}
+    mx = ctx.get("matrix_summary") or {}
 
     findings = [
         f"Community friction (heuristic 1-10): A {a.get('score')} vs B {b.get('score')}.",
@@ -22,6 +23,11 @@ def analyze_friction(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrief:
         f"housing {terms_b.get('housing')}, grid {terms_b.get('grid')}.",
         "Higher scores mean more neighbourhood friction; grid term tracks peak strain.",
     ]
+    if mx.get("worst_peak_scenario"):
+        findings.append(
+            f"Year pack: grid friction pressure highest in "
+            f"{mx.get('worst_peak_scenario')} (heuristic follows peak strain)."
+        )
 
     stub = AgentBrief(
         agent_id="friction",
@@ -48,7 +54,11 @@ def analyze_friction(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrief:
         provider,
         agent_id="friction",
         title="Community friction",
-        focus="Interpret the documented friction heuristic for Options A and B.",
-        context={"friction": fr},
+        focus=(
+            "Interpret friction across the year-pack peak matrix; grid term follows strain."
+            if mx
+            else "Interpret the documented friction heuristic for Options A and B."
+        ),
+        context={"friction": fr, "matrix_summary": mx or None},
         stub=stub,
     )

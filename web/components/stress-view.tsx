@@ -7,10 +7,12 @@ import { PixelViewport } from "@/components/pixel-viewport";
 import { RenderPanel } from "@/components/render-panel";
 import { StrainGauge } from "@/components/strain-gauge";
 import { FLAGS } from "@/lib/flags";
+import { STRESS_SCENARIOS, scenarioLabel } from "@/lib/scenarios";
 import type {
   AgentBrief,
   BossSynthesis,
   Comparison,
+  MatrixSummary,
   OptionKey,
   OptionResult,
 } from "@/lib/types";
@@ -25,6 +27,11 @@ interface StressViewProps {
   synthesis?: BossSynthesis | null;
   briefingGenerator?: string | null;
   briefingFallbackReason?: string | null;
+  /** Year-pack matrix; when set, show multi-scenario dashboard. */
+  matrixSummary?: MatrixSummary | null;
+  scenarios?: Record<string, Comparison> | null;
+  focusScenario?: string;
+  onFocusScenario?: (key: string) => void;
 }
 
 export function StressView({
@@ -37,20 +44,54 @@ export function StressView({
   synthesis,
   briefingGenerator,
   briefingFallbackReason,
+  matrixSummary,
+  scenarios,
+  focusScenario,
+  onFocusScenario,
 }: StressViewProps) {
+  const yearMode = Boolean(matrixSummary && scenarios);
+  const focusKey = focusScenario ?? "heatwave_full";
+  const focusComparison =
+    (yearMode && scenarios?.[focusKey]) || comparison;
+  const focusMeta = STRESS_SCENARIOS.find((s) => s.key === focusKey);
+
   return (
-    <div className="pointer-events-auto flex h-full flex-col bg-[#0b1420]/92 p-4 backdrop-blur-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-white">
-          Stress test: {comparison.scenario_name}
-        </h2>
+    <div className="pointer-events-auto h-full overflow-y-auto bg-[#0b1420]/92 p-4 backdrop-blur-sm">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[15px] font-semibold text-white">
+            {yearMode
+              ? "Year pack stress"
+              : `Stress test: ${comparison.scenario_name}`}
+          </h2>
+          {yearMode && (
+            <p className="mt-1 max-w-2xl text-[11px] leading-snug text-white/55">
+              Five extreme 48h weekends run in parallel (not a full 8760h year).
+              Annual energy stays CBECS averages. Tap a row to focus the load
+              charts below.
+            </p>
+          )}
+        </div>
         <button
           onClick={onShowMemo}
-          className="rounded bg-accent px-3.5 py-2 text-[13px] font-semibold text-ink hover:opacity-90"
+          className="shrink-0 rounded bg-accent px-3.5 py-2 text-[13px] font-semibold text-ink hover:opacity-90"
         >
-          {memoReady ? "View memo" : "Preparing memo..."}
+          {memoReady
+            ? yearMode
+              ? "View year memo"
+              : "View memo"
+            : "Preparing memo..."}
         </button>
       </div>
+
+      {yearMode && matrixSummary && (
+        <MatrixStrip
+          matrix={matrixSummary}
+          focusKey={focusKey}
+          onFocus={(key) => onFocusScenario?.(key)}
+        />
+      )}
+
       {FLAGS.stay22 && (
         <div className="mb-2.5">
           <MarketPulse />
@@ -64,22 +105,102 @@ export function StressView({
           fallbackReason={briefingFallbackReason}
         />
       )}
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
+      {yearMode && (
+        <p className="mb-2 text-[11px] text-white/55">
+          Charts: {scenarioLabel(focusKey)}
+          {focusMeta ? ` — ${focusMeta.blurb}` : ""}.
+        </p>
+      )}
+      <div className="grid grid-cols-1 gap-4 pb-16 md:grid-cols-2">
         <OptionColumn
-          result={comparison.option_a}
+          result={focusComparison.option_a}
           colour="#e5484d"
           active={active === "A"}
-          recommended={comparison.recommended === "A"}
+          recommended={focusComparison.recommended === "A"}
           onSelect={() => onSelect("A")}
         />
         <OptionColumn
-          result={comparison.option_b}
+          result={focusComparison.option_b}
           colour="#f5c518"
           active={active === "B"}
-          recommended={comparison.recommended === "B"}
+          recommended={focusComparison.recommended === "B"}
           onSelect={() => onSelect("B")}
         />
       </div>
+    </div>
+  );
+}
+
+function MatrixStrip({
+  matrix,
+  focusKey,
+  onFocus,
+}: {
+  matrix: MatrixSummary;
+  focusKey: string;
+  onFocus: (key: string) => void;
+}) {
+  const flips = new Set(matrix.flip_scenarios || []);
+  return (
+    <div className="mb-3 overflow-x-auto rounded-lg border border-white/15 bg-black/25">
+      <table className="w-full min-w-[640px] border-collapse text-left text-[11px]">
+        <thead>
+          <tr className="border-b border-white/10 text-white/50">
+            <th className="px-2 py-1.5 font-medium">Scenario</th>
+            <th className="px-2 py-1.5 font-medium">A peak / strain</th>
+            <th className="px-2 py-1.5 font-medium">B peak / strain</th>
+            <th className="px-2 py-1.5 font-medium">Pick</th>
+          </tr>
+        </thead>
+        <tbody>
+          {STRESS_SCENARIOS.map((s) => {
+            const peaks = matrix.peak_kw[s.key];
+            const strains = matrix.strain[s.key];
+            const rec = matrix.recommended_by_scenario[s.key];
+            if (!peaks || !strains || !rec) return null;
+            const isFocus = focusKey === s.key;
+            const isFlip = flips.has(s.key);
+            return (
+              <tr
+                key={s.key}
+                onClick={() => onFocus(s.key)}
+                className={`cursor-pointer border-b border-white/5 transition ${
+                  isFocus ? "bg-accent/15" : "hover:bg-white/5"
+                } ${isFlip ? "outline outline-1 outline-offset-[-1px] outline-amber-400/50" : ""}`}
+              >
+                <td className="px-2 py-1.5">
+                  <span className="font-semibold text-white">{s.label}</span>
+                  <span className="mt-0.5 block text-[9.5px] font-normal text-white/45">
+                    {s.blurb}
+                  </span>
+                </td>
+                <td className="px-2 py-1.5 text-white/80">
+                  {peaks.A.toFixed(0)} kW · {strains.A}
+                </td>
+                <td className="px-2 py-1.5 text-white/80">
+                  {peaks.B.toFixed(0)} kW · {strains.B}
+                </td>
+                <td className="px-2 py-1.5">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                      isFlip
+                        ? "bg-amber-400/25 text-amber-200"
+                        : "bg-mint/20 text-mint"
+                    }`}
+                  >
+                    {rec}
+                    {isFlip ? " flip" : ""}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="border-t border-white/10 px-2 py-1.5 text-[9.5px] leading-snug text-white/40">
+        Abatement / memo baseline uses the heat-wave weekend figures; picks and
+        peaks above are per scenario. Amber = pick differs from heat-wave.
+      </p>
     </div>
   );
 }
@@ -100,7 +221,7 @@ function OptionColumn({
   return (
     <button
       onClick={onSelect}
-      className={`flex flex-col items-center gap-1.5 overflow-y-auto rounded-lg border p-3 text-left transition ${
+      className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-left transition ${
         active ? "border-accent bg-white/5" : "border-white/15 hover:bg-white/5"
       }`}
     >

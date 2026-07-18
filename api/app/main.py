@@ -76,6 +76,7 @@ class CompareRequest(BaseModel):
     hvac_a: str = Field(default="central_gas", pattern="^(central_gas|heat_pump)$")
     structure_b: str = Field(default="mass_timber", pattern="^(concrete|mass_timber|steel)$")
     hvac_b: str = Field(default="heat_pump", pattern="^(central_gas|heat_pump)$")
+    auth0_sub: str | None = None
 
 
 def _scenario(name: str):
@@ -157,7 +158,14 @@ def memo(req: CompareRequest) -> dict[str, object]:
     memo_data["narrative"] = generate_narrative(
         memo_data, (os.environ.get("GEMINI_API_KEY") or "").strip() or None
     )
-    record_run(memo_data)
+    record_run(
+        memo_data,
+        auth0_sub=req.auth0_sub,
+        structure_a=req.structure_a,
+        hvac_a=req.hvac_a,
+        structure_b=req.structure_b,
+        hvac_b=req.hvac_b,
+    )
     return memo_data
 
 

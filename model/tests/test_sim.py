@@ -79,6 +79,33 @@ def test_option_b_is_cleaner_and_calmer() -> None:
     assert rb.annual_gas_m3 == 0.0
 
 
+def test_deep_cold_harder_than_winter_typical() -> None:
+    config = BuildingConfig("boutique", 40, "concrete", "central_gas")
+    deep = run_option(config, SCENARIOS["deep_cold_full"])
+    winter = run_option(config, SCENARIOS["winter_typical"])
+    assert deep.peak_kw > winter.peak_kw
+
+
+def test_deep_cold_heat_pump_draws_more_feeder_than_gas() -> None:
+    """Under deep cold, HP electrifies heat so feeder peak exceeds gas+aux."""
+    gas = BuildingConfig("boutique", 40, "concrete", "central_gas")
+    hp = BuildingConfig("boutique", 40, "mass_timber", "heat_pump")
+    cold = SCENARIOS["deep_cold_full"]
+    assert run_option(hp, cold).peak_kw > run_option(gas, cold).peak_kw
+
+
+def test_scenarios_cover_climate_year() -> None:
+    assert {
+        "heatwave_full",
+        "summer_shoulder",
+        "typical_weekend",
+        "winter_typical",
+        "deep_cold_full",
+    } <= set(SCENARIOS)
+    for scenario in SCENARIOS.values():
+        assert len(scenario.hourly_temps_c) == 48
+
+
 def test_identical_options_recommend_cheaper_not_arbitrary() -> None:
     """A tie in emissions must not invent a winner on the greener axis."""
     a = BuildingConfig("boutique", 40, "concrete", "central_gas", "Option A: same")

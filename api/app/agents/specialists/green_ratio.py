@@ -55,7 +55,15 @@ def analyze_green_ratio(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrie
         provider,
         agent_id="green_ratio",
         title="Relative green ratio",
-        focus="How green A vs B is relative to a neighborhood hospitality carbon proxy.",
-        context={"green_ratio": gr, "comparison": cmp_},
+        focus=(
+            "Relative greenness of A vs B; annual tCO2e is scenario-stable across the year pack."
+            if ctx.get("matrix_summary")
+            else "How green A vs B is relative to a neighborhood hospitality carbon proxy."
+        ),
+        context={
+            "green_ratio": gr,
+            "comparison": cmp_,
+            "matrix_summary": ctx.get("matrix_summary"),
+        },
         stub=stub,
     )

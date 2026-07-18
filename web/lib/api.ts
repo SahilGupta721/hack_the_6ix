@@ -7,6 +7,7 @@ import type {
   LoadProfileInfo,
   Memo,
   Structure,
+  YearBriefing,
 } from "@/lib/types";
 
 export interface OptionOverrides {
@@ -51,12 +52,14 @@ export function fetchMemo(
   rooms: number,
   scenario: string,
   overrides?: OptionOverrides,
+  auth0Sub?: string,
 ): Promise<Memo> {
   return post<Memo>("/memo", {
     building_type: buildingType,
     rooms,
     scenario,
     ...overrides,
+    ...(auth0Sub ? { auth0_sub: auth0Sub } : {}),
   });
 }
 
@@ -65,17 +68,62 @@ export function fetchBriefing(
   rooms: number,
   scenario: string,
   overrides?: OptionOverrides,
+  auth0Sub?: string,
 ): Promise<Briefing> {
   return post<Briefing>("/briefing", {
     building_type: buildingType,
     rooms,
     scenario,
     ...overrides,
+    ...(auth0Sub ? { auth0_sub: auth0Sub } : {}),
+  });
+}
+
+export function fetchYearBriefing(
+  buildingType: BuildingType,
+  rooms: number,
+  overrides?: OptionOverrides,
+  auth0Sub?: string,
+): Promise<YearBriefing> {
+  return post<YearBriefing>("/briefing/year", {
+    building_type: buildingType,
+    rooms,
+    ...overrides,
+    ...(auth0Sub ? { auth0_sub: auth0Sub } : {}),
   });
 }
 
 export function fetchProfiles(): Promise<Record<string, LoadProfileInfo>> {
   return get<Record<string, LoadProfileInfo>>("/profiles");
+}
+
+export interface PastRun {
+  id: string;
+  ts: string;
+  scenario: string;
+  building_type: string;
+  rooms: number;
+  structure_a?: string;
+  hvac_a?: string;
+  structure_b?: string;
+  hvac_b?: string;
+  recommended: string;
+  abatement_cost: number | null;
+  tco2e_delta: number | null;
+  capex_delta: number | null;
+  narrative_generator?: string | null;
+  fallback_reason?: string | null;
+  briefing_generator?: string | null;
+  briefing_fallback_reason?: string | null;
+  agent_source_statuses: string[];
+  honesty_note: string;
+  kind: string;
+}
+
+export function fetchMyRuns(
+  auth0Sub: string,
+): Promise<{ available: boolean; runs: PastRun[]; note?: string }> {
+  return get(`/runs/mine?auth0_sub=${encodeURIComponent(auth0Sub)}`);
 }
 
 /** Upsert Auth0 profile into MongoDB InnSight.auth (signup / login sync). */

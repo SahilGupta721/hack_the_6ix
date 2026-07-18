@@ -38,6 +38,10 @@ def analyze_market(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrief:
         "Fully booked heat-wave stress assumes the occupancy the market is "
         "already signalling on forward dates."
     )
+    if ctx.get("matrix_summary"):
+        findings.append(
+            "Year pack reuses one Stay22 pull across all five extreme weekends."
+        )
 
     risks = []
     if source != "live":
@@ -66,7 +70,15 @@ def analyze_market(provider: LLMProvider, ctx: dict[str, Any]) -> AgentBrief:
         provider,
         agent_id="market",
         title="Market (Stay22)",
-        focus="ADR, demand premium vs shoulder weekend, occupancy implication for the stress case.",
-        context={"market": market, "comparison": ctx.get("comparison")},
+        focus=(
+            "ADR and demand premium; note shared market context for the year pack."
+            if ctx.get("matrix_summary")
+            else "ADR, demand premium vs shoulder weekend, occupancy implication for the stress case."
+        ),
+        context={
+            "market": market,
+            "comparison": ctx.get("comparison"),
+            "matrix_summary": ctx.get("matrix_summary"),
+        },
         stub=stub,
     )

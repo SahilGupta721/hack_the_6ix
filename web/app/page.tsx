@@ -10,15 +10,14 @@ import {
 } from "@/components/design-panel";
 import { Landing } from "@/components/landing";
 import { MemoView } from "@/components/memo-view";
+import { PastRunsPanel } from "@/components/past-runs-panel";
 import { PhysicsLog } from "@/components/physics-log";
 import { ProfilesPanel } from "@/components/profiles-panel";
 import { SignInPrompt, type SignInReason } from "@/components/sign-in-prompt";
 import { StressView } from "@/components/stress-view";
 import { TopBar } from "@/components/top-bar";
 import {
-  fetchBriefing,
-  fetchComparison,
-  fetchMemo,
+  fetchYearBriefing,
   type OptionOverrides,
 } from "@/lib/api";
 import {
@@ -36,6 +35,10 @@ import {
   type CandidateSite,
 } from "@/lib/candidate-sites";
 import type { GeocodeResult } from "@/lib/geocode";
+import {
+  DEFAULT_SCENARIO,
+  type StressScenarioKey,
+} from "@/lib/scenarios";
 import { defaultActiveSite, type ActiveSite } from "@/lib/site";
 import { useAuth } from "@/lib/use-auth";
 import type {
@@ -43,6 +46,7 @@ import type {
   BossSynthesis,
   BuildingType,
   Comparison,
+  MatrixSummary,
   Memo,
   OptionKey,
 } from "@/lib/types";
@@ -69,9 +73,7 @@ const UI_FLOORS: Record<UiBuildingType, number> = {
   bnb: 3,
 };
 
-const SCENARIO = "heatwave_full";
-
-type Overlay = "none" | "stress" | "memo" | "profiles";
+type Overlay = "none" | "stress" | "memo" | "profiles" | "runs";
 
 // Next.js App Router requires a default export for page files.
 export default function HomePage() {
@@ -84,10 +86,18 @@ export default function HomePage() {
   const [uiType, setUiType] = useState<UiBuildingType>("hotel");
   const [rooms, setRooms] = useState(40);
   const [option, setOption] = useState<OptionKey>("A");
+  const [scenario, setScenario] = useState<StressScenarioKey>(DEFAULT_SCENARIO);
   const [componentsByOption, setComponentsByOption] = useState<
     Record<OptionKey, BuildComponents>
   >({ A: { ...OPTION_PRESETS.A }, B: { ...OPTION_PRESETS.B } });
   const [comparison, setComparison] = useState<Comparison | null>(null);
+  const [yearScenarios, setYearScenarios] = useState<Record<
+    string,
+    Comparison
+  > | null>(null);
+  const [matrixSummary, setMatrixSummary] = useState<MatrixSummary | null>(
+    null,
+  );
   const [memo, setMemo] = useState<Memo | null>(null);
   const [briefs, setBriefs] = useState<Record<string, AgentBrief> | null>(null);
   const [synthesis, setSynthesis] = useState<BossSynthesis | null>(null);
@@ -178,6 +188,8 @@ export default function HomePage() {
   const invalidate = useCallback(() => {
     runToken.current += 1; // discard any in-flight run for the old parameters
     setComparison(null);
+    setYearScenarios(null);
+    setMatrixSummary(null);
     setMemo(null);
     setBriefs(null);
     setSynthesis(null);
@@ -304,7 +316,7 @@ export default function HomePage() {
     }
     const token = ++runToken.current;
     setRunning(true);
-    appendLog("Stress test: fully booked heat-wave weekend, 36.2 C peak...");
+    appendLog("Year pack: 5 scenarios…");
     const engineType = ENGINE_TYPE[uiType];
     const overrides: OptionOverrides = {
       structure_a: deriveStructure(componentsByOption.A),
@@ -312,52 +324,44 @@ export default function HomePage() {
       structure_b: deriveStructure(componentsByOption.B),
       hvac_b: deriveHvac(componentsByOption.B),
     };
+    const auth0Sub = FLAGS.auth0 && auth.sub ? auth.sub : undefined;
     try {
-      const memoPromise = fetchMemo(engineType, rooms, SCENARIO, overrides);
-      let comparisonResult: Comparison;
-      if (FLAGS.agents) {
-        appendLog("Dispatching specialist agents (market, env, neighbourhood...)...");
-        const briefing = await fetchBriefing(
-          engineType,
-          rooms,
-          SCENARIO,
-          overrides,
-        );
-        if (runToken.current !== token) return;
-        comparisonResult = briefing.comparison;
-        setBriefs(briefing.briefs);
-        setSynthesis(briefing.synthesis);
-        setBriefingGenerator(briefing.generator);
-        setBriefingFallbackReason(briefing.fallback_reason ?? null);
-        appendLog(
-          `Agents ready (${briefing.generator}): ${Object.keys(briefing.briefs).length} briefs + boss.` +
-            (briefing.fallback_reason
-              ? ` Fallback: ${briefing.fallback_reason}`
-              : ""),
-        );
-      } else {
-        comparisonResult = await fetchComparison(
-          engineType,
-          rooms,
-          SCENARIO,
-          overrides,
-        );
-        if (runToken.current !== token) return;
-      }
-      setComparison(comparisonResult);
+      const year = await fetchYearBriefing(
+        engineType,
+        rooms,
+        overrides,
+        auth0Sub,
+      );
+      if (runToken.current !== token) return;
+      appendLog("Sim matrix ready.");
+      setYearScenarios(year.scenarios);
+      setMatrixSummary(year.matrix_summary);
+      setComparison(year.comparison);
+      setBriefs(year.briefs);
+      setSynthesis(year.synthesis);
+      setBriefingGenerator(year.generator);
+      setBriefingFallbackReason(year.fallback_reason ?? null);
+      setMemo(year.memo);
       setOverlay("stress");
       appendLog(
-        `Peak strain: A ${comparisonResult.option_a.strain_class} vs B ${comparisonResult.option_b.strain_class}. Recommended: Option ${comparisonResult.recommended}.`,
+        `Agents… (${year.generator}): ${Object.keys(year.briefs).length} briefs + year boss.` +
+          (year.fallback_reason ? ` Fallback: ${year.fallback_reason}` : ""),
       );
-      const memoResult = await memoPromise;
-      if (runToken.current !== token) return;
-      setMemo(memoResult);
+      const flips = year.matrix_summary.flip_scenarios;
       appendLog(
-        `Memo ready (${memoResult.narrative.generator}).` +
-          (memoResult.narrative.fallback_reason
-            ? ` Fallback: ${memoResult.narrative.fallback_reason}`
+        `Portfolio: baseline ${year.matrix_summary.baseline_recommended}` +
+          (flips.length ? `; flips in ${flips.join(", ")}` : "; no flips") +
+          `.`,
+      );
+      appendLog(
+        `Portfolio memo ready (${year.memo.narrative.generator}).` +
+          (year.memo.narrative.fallback_reason
+            ? ` Fallback: ${year.memo.narrative.fallback_reason}`
             : ""),
       );
+      if (auth0Sub) {
+        appendLog("Year pack saved to your account history.");
+      }
     } catch {
       if (runToken.current === token) {
         appendLog("Engine unreachable. Is the API running on port 8000?");
@@ -365,7 +369,14 @@ export default function HomePage() {
     } finally {
       if (runToken.current === token) setRunning(false);
     }
-  }, [appendLog, auth.loggedIn, componentsByOption, rooms, uiType]);
+  }, [
+    appendLog,
+    auth.loggedIn,
+    auth.sub,
+    componentsByOption,
+    rooms,
+    uiType,
+  ]);
 
   const explainMemo = useCallback(() => {
     if (!memo) {
@@ -469,6 +480,12 @@ export default function HomePage() {
                 synthesis={synthesis}
                 briefingGenerator={briefingGenerator}
                 briefingFallbackReason={briefingFallbackReason}
+                matrixSummary={matrixSummary}
+                scenarios={yearScenarios}
+                focusScenario={scenario}
+                onFocusScenario={(key) =>
+                  setScenario(key as StressScenarioKey)
+                }
               />
             </div>
           )}
@@ -477,6 +494,13 @@ export default function HomePage() {
               memo={memo}
               onClose={() => setOverlay("stress")}
               onNeedSignIn={() => setSignIn({ open: true, reason: "export" })}
+            />
+          )}
+          {overlay === "runs" && (
+            <PastRunsPanel
+              auth0Sub={auth.sub}
+              loggedIn={auth.loggedIn}
+              onClose={() => setOverlay("none")}
             />
           )}
           {overlay === "profiles" && (
@@ -510,7 +534,15 @@ export default function HomePage() {
           </aside>
         )}
 
-        <div className="absolute bottom-3 right-[19.5rem] z-10">
+        <div className="absolute bottom-3 right-[19.5rem] z-10 flex flex-col gap-2">
+          <button
+            onClick={() =>
+              setOverlay(overlay === "runs" ? "none" : "runs")
+            }
+            className="rounded border border-panel-border bg-panel px-3 py-2 text-[12px] font-semibold shadow hover:bg-panel-muted"
+          >
+            Past runs
+          </button>
           <button
             onClick={() =>
               setOverlay(overlay === "profiles" ? "none" : "profiles")

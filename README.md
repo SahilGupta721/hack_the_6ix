@@ -42,7 +42,10 @@ Honesty first: this table says exactly what is real and what is a labelled simul
 | Hourly load curves | Generated from published load-profile behaviour; in-app validation overlay against a metered hotel study (Placet et al. 2010) |
 | Stay22 market pulse | Real live demo-mode API calls, forward dates, no listing storage; cache fallback disclosed in-UI |
 | Multi-agent briefing | Specialists (market, environment, neighbourhood, green ratio, friction, compliance) + boss; Gemini structured JSON when keyed, deterministic stubs otherwise; sim remains source of truth for A/B numbers |
-| Memo narrative | Gemini structured output over real computed numbers; deterministic fallback without a key, generator labelled in-UI |
+| Year-pack parallel stress | One action runs all five extreme weekends in parallel (deterministic sim matrix); shared Stay22/env gather; ~8 Gemini calls total (6 specialists + year boss + one portfolio memo), not 5× full briefing; **not** a true 8760h weather year |
+| Seasonal stress scenarios | Named extreme weekends across the year (heat-wave, summer shoulder, typical July, typical winter, deep cold); 48h peak curves with heating + cooling; annual energy still CBECS averages, not 8760h weather |
+| Per-user past runs | Mongo `memo_runs` metadata when Auth0 signed in (scenario, recommendation, generators, honesty note; `kind=year_pack` for year runs); no Stay22 listings; JWT verification still a follow-up |
+| Memo narrative | Gemini structured output over real computed numbers (single-scenario or year portfolio); deterministic fallback without a key, generator labelled in-UI |
 | Streetscape renders | Illustrative AI imagery, labelled, static fallback disclosed |
 | Community friction score | Documented heuristic (`model/friction.md`), not survey data |
 | Building geometry | Illustrative massing, not permit-ready drawings |

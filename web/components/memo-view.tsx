@@ -1,7 +1,9 @@
 "use client";
 
+import { MemoDualLoadChart } from "@/components/memo-dual-load-chart";
+import { STRESS_SCENARIOS, scenarioLabel } from "@/lib/scenarios";
 import { useAuth } from "@/lib/use-auth";
-import type { Memo, MemoOption } from "@/lib/types";
+import type { Memo, MemoOption, PortfolioRow } from "@/lib/types";
 
 interface MemoViewProps {
   memo: Memo;
@@ -22,10 +24,17 @@ function Sup({ refs }: { refs: number[] }) {
   );
 }
 
+function strainColour(cls: string): string {
+  if (cls === "CRITICAL") return "#b3261e";
+  if (cls === "ELEVATED") return "#8a5a00";
+  return "#0d7a55";
+}
+
 export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
   const auth = useAuth();
   const needsLogin = auth.enabled && !auth.loggedIn;
   const needsMfa = auth.enabled && auth.loggedIn && !auth.mfaVerified;
+  const isYearPack = memo.kind === "year_pack";
 
   const exportLabel = needsLogin
     ? "Sign in to export"
@@ -47,6 +56,8 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
 
   const optionA = memo.options.find((o) => o.key === "A");
   const optionB = memo.options.find((o) => o.key === "B");
+  const env = memo.environmental_summary;
+  const portfolio = memo.portfolio_table || [];
 
   return (
     <div className="pointer-events-auto absolute inset-0 z-20 overflow-y-auto bg-[#0b1420]/70 p-5 backdrop-blur-sm print:overflow-visible print:bg-white print:p-0">
@@ -83,8 +94,9 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
             {memo.title}
           </h1>
           <p className="mt-1 text-[12px] text-text-soft">
-            Stress case: {memo.scenario}. All figures computed by the INN-SIGHT
-            deterministic engine; sources footnoted below.
+            {isYearPack
+              ? "Year-pack Green AI memo: carbon, peak grid, and five extreme-weekend stress charts. Figures from the deterministic engine; Export / print includes the charts."
+              : `Stress case: ${memo.scenario}. All figures computed by the INN-SIGHT deterministic engine; sources footnoted below.`}
           </p>
         </header>
 
@@ -92,12 +104,17 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
         <header className="memo-letterhead hidden print:block">
           <div className="memo-letterhead-row">
             <p className="memo-brand">INN-SIGHT</p>
-            <p className="memo-meta">Comparative development memo</p>
+            <p className="memo-meta">
+              {isYearPack
+                ? "Green AI · year-pack portfolio memo"
+                : "Comparative development memo"}
+            </p>
           </div>
           <h1 className="memo-title">{memo.title}</h1>
           <p className="memo-deck">
-            Stress case: {memo.scenario}. Figures from the deterministic engine;
-            narrative over computed numbers
+            {isYearPack
+              ? "Five extreme weekends (not 8760h). Carbon and peak-grid outcomes from the deterministic sim; narrative over computed numbers"
+              : `Stress case: ${memo.scenario}. Figures from the deterministic engine; narrative over computed numbers`}
             {memo.narrative.generator !== "deterministic-fallback"
               ? ` (${memo.narrative.generator})`
               : ""}
@@ -105,7 +122,63 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
           </p>
         </header>
 
-        {/* Screen table */}
+        {/* Environmental / Green AI strip */}
+        {(env || (optionA && optionB)) && (
+          <section className="memo-env mt-4 rounded border border-[#c8e6d8] bg-[#f3faf6] p-3.5 print:mt-3 print:break-inside-avoid">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#0d7a55]">
+              Environmental impact (Green AI track)
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-text-soft">
+              {env?.note ||
+                "Sim is source of truth for tCO2e and peak strain; agents only narrate."}
+            </p>
+            <div className="mt-2.5 grid grid-cols-2 gap-2 text-[12px] sm:grid-cols-4">
+              <EnvStat
+                label="Option A tCO2e/yr"
+                value={(env?.tco2e_a ?? optionA?.tco2e_per_year.total ?? 0).toFixed(
+                  1,
+                )}
+              />
+              <EnvStat
+                label="Option B tCO2e/yr"
+                value={(env?.tco2e_b ?? optionB?.tco2e_per_year.total ?? 0).toFixed(
+                  1,
+                )}
+              />
+              <EnvStat
+                label="Δ tCO2e (A−B)"
+                value={(
+                  env?.tco2e_delta ?? memo.comparison.tco2e_delta
+                ).toFixed(1)}
+              />
+              <EnvStat
+                label="Abatement vs $170/t"
+                value={
+                  (env?.abatement_cost ?? memo.comparison.abatement_cost) == null
+                    ? "n/a"
+                    : `$${(
+                        env?.abatement_cost ?? memo.comparison.abatement_cost!
+                      ).toFixed(0)}/t`
+                }
+              />
+            </div>
+            {isYearPack && env && (
+              <p className="mt-2 text-[11px] text-text-soft">
+                Worst peak weekend:{" "}
+                <span className="font-semibold text-text-strong">
+                  {scenarioLabel(env.worst_peak_scenario || "")}
+                </span>
+                . Coldest HP feeder stress:{" "}
+                <span className="font-semibold text-text-strong">
+                  {scenarioLabel(env.coldest_hp_stress_scenario || "")}
+                </span>
+                .
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* Screen option table */}
         <div className="mt-4 overflow-x-auto print:hidden">
           <table className="w-full border-collapse text-[12px]">
             <thead>
@@ -145,7 +218,7 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
           </table>
         </div>
 
-        {/* Print comparison — metric rows, no horizontal overflow */}
+        {/* Print comparison */}
         {optionA && optionB && (
           <section className="memo-compare hidden print:block">
             <PrintCompare
@@ -181,6 +254,14 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
             refs={memo.comparison.footnotes}
           />
         </div>
+
+        {/* Year-pack portfolio + printable stress charts */}
+        {isYearPack && portfolio.length > 0 && (
+          <YearPackAppendix
+            rows={portfolio}
+            flipScenarios={memo.matrix_summary?.flip_scenarios || []}
+          />
+        )}
 
         <div className="memo-rec mt-4 rounded border border-panel-border bg-panel-muted p-3.5 print:break-inside-avoid">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-text-soft">
@@ -243,10 +324,145 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
 
         <footer className="memo-footer hidden print:block">
           <p>
-            INN-SIGHT · 45 The Esplanade, Toronto · Generated for investor review
+            INN-SIGHT · 45 The Esplanade, Toronto · Green AI stress appendix
+            included when year pack · Generated for investor review
           </p>
         </footer>
       </div>
+    </div>
+  );
+}
+
+function YearPackAppendix({
+  rows,
+  flipScenarios,
+}: {
+  rows: PortfolioRow[];
+  flipScenarios: string[];
+}) {
+  const flips = new Set(flipScenarios);
+  return (
+    <section className="memo-year-appendix mt-5 print:mt-6">
+      <h2 className="text-[14px] font-semibold text-text-strong">
+        Year-pack stress results
+      </h2>
+      <p className="mt-1 text-[11px] leading-snug text-text-soft">
+        Peak feeder load and strain under five extreme 48h weekends. Charts
+        print with Export / print — use them for data-driven A/B decisions
+        alongside the carbon case above. Not a full 8760h weather year.
+      </p>
+
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full border-collapse text-[12px]">
+          <thead>
+            <tr className="bg-panel-muted text-left">
+              <th className="border border-panel-border px-2.5 py-2 font-semibold">
+                Scenario
+              </th>
+              <th className="border border-panel-border px-2.5 py-2 font-semibold">
+                A peak / strain
+              </th>
+              <th className="border border-panel-border px-2.5 py-2 font-semibold">
+                B peak / strain
+              </th>
+              <th className="border border-panel-border px-2.5 py-2 font-semibold">
+                Peak Δ (B−A)
+              </th>
+              <th className="border border-panel-border px-2.5 py-2 font-semibold">
+                Pick
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const isFlip = flips.has(row.scenario_key);
+              const meta = STRESS_SCENARIOS.find((s) => s.key === row.scenario_key);
+              const delta = row.peak_kw_b - row.peak_kw_a;
+              return (
+                <tr
+                  key={row.scenario_key}
+                  className={isFlip ? "bg-amber-50" : undefined}
+                >
+                  <td className="border border-panel-border px-2.5 py-2">
+                    <span className="font-semibold">{row.scenario_name}</span>
+                    {meta && (
+                      <span className="mt-0.5 block text-[10px] text-text-soft">
+                        {meta.blurb}
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="border border-panel-border px-2.5 py-2 font-medium"
+                    style={{ color: strainColour(row.strain_a) }}
+                  >
+                    {row.peak_kw_a.toFixed(0)} kW · {row.strain_a}
+                  </td>
+                  <td
+                    className="border border-panel-border px-2.5 py-2 font-medium"
+                    style={{ color: strainColour(row.strain_b) }}
+                  >
+                    {row.peak_kw_b.toFixed(0)} kW · {row.strain_b}
+                  </td>
+                  <td className="border border-panel-border px-2.5 py-2">
+                    {delta >= 0 ? "+" : ""}
+                    {delta.toFixed(0)} kW
+                  </td>
+                  <td className="border border-panel-border px-2.5 py-2 font-semibold">
+                    {row.recommended}
+                    {isFlip ? " (flip)" : ""}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="memo-chart-grid mt-4 space-y-4">
+        {rows.map((row) => {
+          if (!row.hourly_kw_a?.length || !row.hourly_kw_b?.length) return null;
+          const meta = STRESS_SCENARIOS.find((s) => s.key === row.scenario_key);
+          const isFlip = flips.has(row.scenario_key);
+          return (
+            <article
+              key={`chart-${row.scenario_key}`}
+              className="memo-scenario-chart break-inside-avoid rounded border border-panel-border p-3 print:border-[#d0d5dd]"
+            >
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <div>
+                  <h3 className="text-[13px] font-semibold text-text-strong">
+                    {meta?.label ?? row.scenario_name}
+                  </h3>
+                  <p className="text-[10.5px] text-text-soft">
+                    {meta?.blurb ?? "48h stress window"} · A{" "}
+                    {row.peak_kw_a.toFixed(0)} kW ({row.strain_a}) vs B{" "}
+                    {row.peak_kw_b.toFixed(0)} kW ({row.strain_b}) · pick{" "}
+                    <strong>{row.recommended}</strong>
+                    {isFlip ? " · flip vs heat-wave" : ""}
+                  </p>
+                </div>
+              </div>
+              <MemoDualLoadChart
+                seriesA={row.hourly_kw_a}
+                seriesB={row.hourly_kw_b}
+                labelA={`A · ${row.peak_kw_a.toFixed(0)} kW`}
+                labelB={`B · ${row.peak_kw_b.toFixed(0)} kW`}
+              />
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function EnvStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-[#c8e6d8] bg-white px-2.5 py-2">
+      <p className="text-[9.5px] uppercase tracking-wider text-[#0d7a55]">
+        {label}
+      </p>
+      <p className="mt-0.5 text-[14px] font-semibold text-text-strong">{value}</p>
     </div>
   );
 }
@@ -355,12 +571,6 @@ function MemoRow({
   option: MemoOption;
   recommended: boolean;
 }) {
-  const strainColour =
-    option.peak_grid_strain.class === "CRITICAL"
-      ? "#b3261e"
-      : option.peak_grid_strain.class === "ELEVATED"
-        ? "#8a5a00"
-        : "#0d7a55";
   return (
     <tr className={recommended ? "bg-[#f5c518]/10" : undefined}>
       <td className="border border-panel-border px-2.5 py-2 font-semibold">
@@ -409,7 +619,7 @@ function MemoRow({
       </td>
       <td
         className="border border-panel-border px-2.5 py-2 font-semibold"
-        style={{ color: strainColour }}
+        style={{ color: strainColour(option.peak_grid_strain.class) }}
       >
         {option.peak_grid_strain.class}
         <Sup refs={option.peak_grid_strain.footnotes} />

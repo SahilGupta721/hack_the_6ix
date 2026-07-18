@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from typing import Any, Protocol
 
 from pydantic import BaseModel
 
 GEMINI_MODEL = "gemini-flash-latest"
+# Cap concurrent Gemini calls to protect RPM / prepaid credits.
+_GEMINI_SEM = threading.Semaphore(4)
 
 
 class LLMProvider(Protocol):
@@ -51,16 +54,17 @@ class GeminiProvider:
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=self._api_key)
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=f"{system}\n\n{user}",
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=schema,
-                temperature=0.2,
-            ),
-        )
+        with _GEMINI_SEM:
+            client = genai.Client(api_key=self._api_key)
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=f"{system}\n\n{user}",
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.2,
+                ),
+            )
         return schema.model_validate_json(response.text)
 
 
@@ -76,8 +80,6 @@ def get_provider(api_key: str | None = None) -> tuple[LLMProvider, str | None]:
         return DeterministicFallbackProvider(), "no_api_key"
     provider = GeminiProvider(key)
     try:
-        from pydantic import BaseModel
-
         class _Probe(BaseModel):
             ok: bool
 
@@ -104,3 +106,17 @@ def get_provider(api_key: str | None = None) -> tuple[LLMProvider, str | None]:
 
 def dumps_context(payload: Any) -> str:
     return json.dumps(payload, default=str, indent=2)
+
+
+def truncate_matrix_for_llm(matrix_summary: dict[str, Any]) -> dict[str, Any]:
+    """Drop bulky fields before sending scenario matrix to Gemini."""
+    return {
+        "recommended_by_scenario": matrix_summary.get("recommended_by_scenario"),
+        "flip_scenarios": matrix_summary.get("flip_scenarios"),
+        "peak_kw": matrix_summary.get("peak_kw"),
+        "strain": matrix_summary.get("strain"),
+        "abatement": matrix_summary.get("abatement"),
+        "worst_peak_scenario": matrix_summary.get("worst_peak_scenario"),
+        "coldest_hp_stress_scenario": matrix_summary.get("coldest_hp_stress_scenario"),
+        "baseline_scenario": matrix_summary.get("baseline_scenario"),
+    }

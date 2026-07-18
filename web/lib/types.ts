@@ -126,6 +126,38 @@ export interface Memo {
     fallback_reason?: string;
   };
   footnotes: Footnote[];
+  kind?: string;
+  portfolio_table?: PortfolioRow[];
+  environmental_summary?: {
+    tco2e_a: number;
+    tco2e_b: number;
+    tco2e_delta: number;
+    abatement_cost: number | null;
+    abatement_threshold: number;
+    worst_peak_scenario?: string;
+    coldest_hp_stress_scenario?: string;
+    note?: string;
+  };
+  matrix_summary?: {
+    flip_scenarios?: string[];
+    worst_peak_scenario?: string;
+    coldest_hp_stress_scenario?: string;
+    recommended_by_scenario?: Record<string, OptionKey>;
+    baseline_recommended?: OptionKey;
+  };
+}
+
+export interface PortfolioRow {
+  scenario_key: string;
+  scenario_name: string;
+  peak_kw_a: number;
+  peak_kw_b: number;
+  strain_a: StrainClass;
+  strain_b: StrainClass;
+  abatement_cost: number | null;
+  recommended: OptionKey;
+  hourly_kw_a?: number[];
+  hourly_kw_b?: number[];
 }
 
 export interface LoadProfileInfo {
@@ -172,4 +204,27 @@ export interface Briefing {
   synthesis: BossSynthesis;
   generator: string;
   fallback_reason?: string | null;
+}
+
+export interface MatrixSummary {
+  recommended_by_scenario: Record<string, OptionKey>;
+  flip_scenarios: string[];
+  peak_kw: Record<string, { A: number; B: number }>;
+  strain: Record<string, { A: string; B: string }>;
+  abatement: Record<string, number | null>;
+  worst_peak_scenario: string;
+  coldest_hp_stress_scenario: string;
+  baseline_scenario: string;
+  baseline_recommended: OptionKey;
+}
+
+export interface YearBriefing {
+  scenarios: Record<string, Comparison>;
+  matrix_summary: MatrixSummary;
+  briefs: Record<string, AgentBrief>;
+  synthesis: BossSynthesis;
+  memo: Memo;
+  generator: string;
+  fallback_reason?: string | null;
+  comparison: Comparison;
 }

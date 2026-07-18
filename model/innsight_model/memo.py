@@ -195,6 +195,98 @@ def build_memo(comparison: Comparison, site_name: str) -> dict[str, Any]:
     return memo
 
 
+_YEAR_ORDER = [
+    "heatwave_full",
+    "summer_shoulder",
+    "typical_weekend",
+    "winter_typical",
+    "deep_cold_full",
+]
+
+
+def build_year_memo(
+    comparisons: dict[str, Comparison],
+    site_name: str,
+    matrix_summary: dict[str, Any],
+) -> dict[str, Any]:
+    """Portfolio memo over the year-pack matrix (one narrative, not five)."""
+    primary = comparisons.get("heatwave_full") or next(iter(comparisons.values()))
+    memo = build_memo(primary, site_name)
+    memo["title"] = f"Year-pack portfolio memo: {site_name}"
+    memo["scenario"] = "Year pack (5 extreme weekends)"
+    memo["kind"] = "year_pack"
+
+    portfolio_table: list[dict[str, Any]] = []
+    for key in _YEAR_ORDER:
+        if key not in comparisons:
+            continue
+        c = comparisons[key]
+        portfolio_table.append(
+            {
+                "scenario_key": key,
+                "scenario_name": c.scenario_name,
+                "peak_kw_a": c.option_a.peak_kw,
+                "peak_kw_b": c.option_b.peak_kw,
+                "strain_a": c.option_a.strain_class,
+                "strain_b": c.option_b.strain_class,
+                "abatement_cost": c.abatement_cost,
+                "recommended": c.recommended,
+                # Printable 48h curves for the memo / Green AI stress appendix.
+                "hourly_kw_a": list(c.option_a.hourly_kw),
+                "hourly_kw_b": list(c.option_b.hourly_kw),
+            }
+        )
+    memo["portfolio_table"] = portfolio_table
+    memo["matrix_summary"] = {
+        "flip_scenarios": matrix_summary.get("flip_scenarios"),
+        "worst_peak_scenario": matrix_summary.get("worst_peak_scenario"),
+        "coldest_hp_stress_scenario": matrix_summary.get(
+            "coldest_hp_stress_scenario"
+        ),
+        "recommended_by_scenario": matrix_summary.get("recommended_by_scenario"),
+        "baseline_recommended": matrix_summary.get("baseline_recommended"),
+    }
+    memo["environmental_summary"] = {
+        "tco2e_a": primary.option_a.tco2e_total,
+        "tco2e_b": primary.option_b.tco2e_total,
+        "tco2e_delta": primary.tco2e_delta,
+        "abatement_cost": primary.abatement_cost,
+        "abatement_threshold": primary.abatement_threshold,
+        "worst_peak_scenario": matrix_summary.get("worst_peak_scenario"),
+        "coldest_hp_stress_scenario": matrix_summary.get(
+            "coldest_hp_stress_scenario"
+        ),
+        "note": (
+            "Green AI track: carbon and peak-grid outcomes are computed by the "
+            "deterministic sim; LLM text only narrates those figures."
+        ),
+    }
+
+    flips = matrix_summary.get("flip_scenarios") or []
+    cold = matrix_summary.get("coldest_hp_stress_scenario")
+    chain = list(memo["reasoning_chain"])
+    chain.append(
+        "Year pack covers five extreme 48h weekends in parallel, not a full "
+        "8760h weather year; annual energy remains CBECS averages."
+    )
+    if flips:
+        chain.append(
+            f"Recommendation differs from the heat-wave baseline in: "
+            f"{', '.join(flips)}."
+        )
+    else:
+        chain.append(
+            "Recommendation is stable across all five extreme-weekend scenarios."
+        )
+    if cold:
+        chain.append(
+            f"Highest Option B peak relative to A occurs in {cold} "
+            "(watch heat-pump feeder stress in cold snaps)."
+        )
+    memo["reasoning_chain"] = chain
+    return memo
+
+
 # ---------------------------------------------------------------------------
 # Narrative
 # ---------------------------------------------------------------------------
@@ -216,6 +308,29 @@ def _fallback_narrative(
     rec = memo["comparison"]["recommended"]
     winner = next(o for o in memo["options"] if o["key"] == rec)
     chain = memo["reasoning_chain"]
+    if memo.get("kind") == "year_pack":
+        mx = memo.get("matrix_summary") or {}
+        flips = mx.get("flip_scenarios") or []
+        summary = (
+            f"Option {rec} ({winner['label'].split(': ', 1)[-1]}) is the "
+            f"heat-wave baseline pick in the year pack. "
+            + (
+                f"Flips in {', '.join(flips)}. "
+                if flips
+                else "Pick is stable across five extreme weekends. "
+            )
+            + "Not a full 8760h simulation."
+        )
+        caveats = _FALLBACK_CAVEATS + [
+            "Year pack uses parallel extreme weekends, not continuous annual weather.",
+        ]
+        return {
+            "summary": summary.strip(),
+            "reasoning": chain[-5:] if len(chain) > 5 else chain,
+            "caveats": caveats,
+            "generator": "deterministic-fallback",
+            "fallback_reason": reason,
+        }
     return {
         "summary": (
             f"Option {rec} ({winner['label'].split(': ', 1)[-1]}) is the "
@@ -248,20 +363,34 @@ def generate_narrative(
 
         client = genai.Client(api_key=key)
         payload = {k: v for k, v in memo.items() if k != "footnotes"}
-        prompt = (
-            "You are writing the recommendation section of an investor-style "
-            "development memo for a hospitality project in Toronto. Tone: calm, "
-            "professional, zero hype, like a lender's credit memo. Canadian "
-            "spelling. Do not use em dashes. Use ONLY numbers that appear in "
-            "the JSON below; never invent a figure. Reference the existing "
-            "footnote indices in square brackets where the JSON provides them. "
-            "Summary: one short paragraph naming the recommended option and "
-            "the single strongest quantified reason. Reasoning: three to five "
-            "single-sentence items, each anchored on a number from the JSON. "
-            "Caveats: two to four honest limits, including that the community "
-            "friction score is a documented heuristic and not survey data.\n\n"
-            + json.dumps(payload)
-        )
+        if memo.get("kind") == "year_pack":
+            prompt = (
+                "You are writing the portfolio recommendation for an INN-SIGHT "
+                "year-pack memo (five extreme weekends in parallel, not 8760h). "
+                "Tone: calm lender credit memo. Canadian spelling. No em dashes. "
+                "Use ONLY numbers in the JSON. Name the heat-wave baseline pick, "
+                "note any recommendation flips, and call out winter heat-pump "
+                "feeder stress if the matrix shows it. Summary: one short "
+                "paragraph. Reasoning: three to five numbered facts from the "
+                "portfolio_table / matrix_summary. Caveats: include that this is "
+                "not a full-year weather simulation and friction is a heuristic.\n\n"
+                + json.dumps(payload)
+            )
+        else:
+            prompt = (
+                "You are writing the recommendation section of an investor-style "
+                "development memo for a hospitality project in Toronto. Tone: calm, "
+                "professional, zero hype, like a lender's credit memo. Canadian "
+                "spelling. Do not use em dashes. Use ONLY numbers that appear in "
+                "the JSON below; never invent a figure. Reference the existing "
+                "footnote indices in square brackets where the JSON provides them. "
+                "Summary: one short paragraph naming the recommended option and "
+                "the single strongest quantified reason. Reasoning: three to five "
+                "single-sentence items, each anchored on a number from the JSON. "
+                "Caveats: two to four honest limits, including that the community "
+                "friction score is a documented heuristic and not survey data.\n\n"
+                + json.dumps(payload)
+            )
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,

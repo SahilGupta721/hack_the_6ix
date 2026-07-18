@@ -520,6 +520,58 @@ COOLING_DESIGN_DELTA_C = _b(
     estimate=True,
 )
 
+HEATING_BALANCE_POINT_C = _b(
+    "heating_balance_point_c",
+    15.0,
+    "degC",
+    "",
+    "ESTIMATE: hospitality heating balance slightly below the ASHRAE 18 C "
+    "cooling convention; space heat engages once outdoor air drops under 15 C.",
+    estimate=True,
+)
+
+PEAK_HEATING_W_PER_SQFT = _b(
+    "peak_heating_w_per_sqft",
+    6.0,
+    "W(thermal)/sqft at design conditions",
+    "",
+    "ESTIMATE: Toronto-climate hospitality envelope heating load near design "
+    "cold (~-20 C) of roughly 5-7 thermal W/sqft before plant efficiency.",
+    estimate=True,
+)
+
+HEATING_DESIGN_DELTA_C = _b(
+    "heating_design_delta_c",
+    35.0,
+    "degC below balance point",
+    "",
+    "ESTIMATE: 15 C balance minus a -20 C design outdoor temperature "
+    "(documented Toronto deep-cold / polar-outbreak class).",
+    estimate=True,
+)
+
+GAS_HEATING_AUX_ELECTRIC_FRACTION = _b(
+    "gas_heating_aux_electric_fraction",
+    0.05,
+    "fraction of thermal heating load",
+    "",
+    "ESTIMATE: pumps, controls, and ignition draw for a central gas plant "
+    "as a share of thermal output; keeps cold-weekend feeder strain honest "
+    "without treating gas heat as grid electricity.",
+    estimate=True,
+)
+
+DEEP_COLD_EVENT_LOW_C = _b(
+    "deep_cold_event_low_c",
+    -22.0,
+    "degC",
+    "https://climate.weather.gc.ca/",
+    "ESTIMATE anchored on Environment Canada Toronto climate extremes: "
+    "overnight lows near -20 to -25 C during polar-outbreak weekends. "
+    "The deep_cold_full scenario bottoms at this value.",
+    estimate=True,
+)
+
 # ---------------------------------------------------------------------------
 # Operations
 # ---------------------------------------------------------------------------

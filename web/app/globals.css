@@ -261,6 +261,27 @@ body {
     color: #5a6472;
   }
 
+  .memo-env {
+    border-color: #c8e6d8 !important;
+    background: #f3faf6 !important;
+  }
+
+  .memo-year-appendix {
+    page-break-before: auto;
+  }
+
+  .memo-scenario-chart {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 10pt;
+  }
+
+  .memo-chart svg {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 150pt;
+  }
+
   a {
     word-break: break-all;
   }

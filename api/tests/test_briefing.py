@@ -14,7 +14,7 @@ if str(API_ROOT) not in sys.path:
     sys.path.insert(0, str(API_ROOT))
 
 from app.agents.llm import DeterministicFallbackProvider
-from app.agents.orchestrator import ALL_AGENT_IDS, run_briefing
+from app.agents.orchestrator import ALL_AGENT_IDS, run_briefing, run_year_briefing
 
 
 @pytest.fixture
@@ -123,3 +123,75 @@ def test_include_agents_subset() -> None:
     result = asyncio.run(_run())
     assert set(result.briefs.keys()) == {"market", "friction"}
     assert result.synthesis.summary
+
+
+def test_year_pack_fallback() -> None:
+    market_stub = {
+        "source": "estimate",
+        "checkin": "2026-07-25",
+        "baseline_checkin": "2026-08-22",
+        "target": {
+            "properties": 12,
+            "priced": 8,
+            "median_rate": 240.0,
+            "min_rate": 180.0,
+        },
+        "baseline": {
+            "properties": 12,
+            "priced": 8,
+            "median_rate": 200.0,
+            "min_rate": 160.0,
+        },
+        "demand_ratio": 1.2,
+        "note": "stub",
+    }
+    grid_stub = {
+        "source": "benchmark",
+        "zone": "CA-ON",
+        "carbon_intensity": None,
+        "note": "stub",
+    }
+
+    async def _run():
+        with (
+            patch(
+                "app.agents.gather.fetch_stay22_market",
+                new=AsyncMock(return_value=market_stub),
+            ),
+            patch(
+                "app.agents.gather.fetch_electricity_maps",
+                new=AsyncMock(return_value=grid_stub),
+            ),
+        ):
+            return await run_year_briefing(
+                building_type="boutique",
+                rooms=40,
+                provider=DeterministicFallbackProvider(),
+            )
+
+    result = asyncio.run(_run())
+
+    assert result.generator == "deterministic-fallback"
+    assert set(result.scenarios.keys()) == {
+        "heatwave_full",
+        "summer_shoulder",
+        "typical_weekend",
+        "winter_typical",
+        "deep_cold_full",
+    }
+    assert set(result.briefs.keys()) == set(ALL_AGENT_IDS)
+    assert result.synthesis.summary
+    assert result.matrix_summary["baseline_scenario"] == "heatwave_full"
+    assert "recommended_by_scenario" in result.matrix_summary
+    assert result.memo.get("kind") == "year_pack"
+    assert result.memo.get("portfolio_table")
+    assert len(result.memo["portfolio_table"]) == 5
+    assert result.memo["portfolio_table"][0].get("hourly_kw_a")
+    assert result.memo["portfolio_table"][0].get("hourly_kw_b")
+    assert "environmental_summary" in result.memo
+    assert "narrative" in result.memo
+    assert result.comparison["recommended"] in ("A", "B")
+
+    # Cold scenario: HP Option B peak still exceeds gas Option A inside matrix.
+    cold = result.scenarios["deep_cold_full"]
+    assert cold["option_b"]["peak_kw"] > cold["option_a"]["peak_kw"]

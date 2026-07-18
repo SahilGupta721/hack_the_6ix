@@ -255,11 +255,11 @@ export function DesignPanel({
             disabled={running}
             className="w-full rounded bg-alert px-3 py-2.5 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
-            {running ? "Running stress test..." : "Run heat-wave stress test"}
+            {running ? "Running year stress..." : "Run year stress"}
           </button>
           <p className="text-[9.5px] leading-snug text-text-soft">
-            Scenario: fully booked heat-wave weekend, 36.2 C peak (Toronto, July
-            14, 2026 event profile).
+            Parallel extreme weekends (heat, shoulder, July, winter, deep cold).
+            Not a full 8760h year. One portfolio memo.
           </p>
         </div>
       )}

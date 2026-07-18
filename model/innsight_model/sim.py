@@ -20,6 +20,7 @@ Unit notes: 1 sqft = 0.092903 m2.
 """
 
 from dataclasses import dataclass, field
+import math
 
 from . import benchmarks as B
 from .load_profiles import get_profile
@@ -58,48 +59,6 @@ class StressScenario:
             raise ValueError("occupancy must be within 0..1")
         if len(self.hourly_temps_c) % 24 != 0:
             raise ValueError("scenario length must be whole days")
-
-
-# Toronto stress weekends, hour 0 = Saturday midnight. The heat-wave profile
-# peaks at 36.2 C, matching the documented July 14, 2026 Toronto heat event
-# (benchmarks.HEATWAVE_EVENT_PEAK_C carries the citation).
-_HEATWAVE_TEMPS: tuple[float, ...] = tuple(
-    [
-        25.0, 24.5, 24.0, 23.5, 23.5, 24.0,
-        25.5, 27.0, 29.0, 31.0, 32.5, 33.5,
-        34.5, 35.0, 35.5, 35.0, 34.0, 32.5,
-        31.0, 29.5, 28.0, 27.0, 26.0, 25.5,
-    ]
-    + [
-        25.5, 25.0, 24.5, 24.0, 24.0, 24.5,
-        26.0, 27.5, 29.5, 31.5, 33.0, 34.0,
-        35.0, 35.8, 36.2, 35.8, 34.5, 33.0,
-        31.5, 30.0, 28.5, 27.5, 26.5, 26.0,
-    ]
-)
-
-_TYPICAL_TEMPS: tuple[float, ...] = tuple(
-    [
-        19.0, 18.5, 18.0, 17.5, 17.5, 18.0,
-        19.0, 20.5, 22.0, 23.5, 24.5, 25.5,
-        26.0, 26.5, 27.0, 26.5, 25.5, 24.5,
-        23.5, 22.5, 21.5, 20.5, 20.0, 19.5,
-    ]
-    * 2
-)
-
-SCENARIOS: dict[str, StressScenario] = {
-    "heatwave_full": StressScenario(
-        name="Heat-Wave Weekend + Full Occupancy",
-        occupancy=1.0,
-        hourly_temps_c=_HEATWAVE_TEMPS,
-    ),
-    "typical_weekend": StressScenario(
-        name="Typical July Weekend",
-        occupancy=0.65,
-        hourly_temps_c=_TYPICAL_TEMPS,
-    ),
-}
 
 
 @dataclass(frozen=True)
@@ -171,6 +130,23 @@ def _peak_cooling_kw(config: BuildingConfig, temp_c: float) -> float:
     return design_kw * min(1.15, over / B.COOLING_DESIGN_DELTA_C.value)
 
 
+def _peak_heating_kw(config: BuildingConfig, temp_c: float) -> float:
+    """Electric feeder draw for space heating at an outdoor temperature.
+
+    Heat pumps take the full thermal load / COP. Central gas contributes only
+    auxiliary electric (pumps/controls); the gas itself is not feeder load.
+    """
+    area = floor_area_sqft(config)
+    thermal_design_kw = area * B.PEAK_HEATING_W_PER_SQFT.value / 1000.0
+    under = max(0.0, B.HEATING_BALANCE_POINT_C.value - temp_c)
+    thermal_kw = thermal_design_kw * min(
+        1.15, under / B.HEATING_DESIGN_DELTA_C.value
+    )
+    if config.hvac == "heat_pump":
+        return thermal_kw / B.HEAT_PUMP_COP.value
+    return thermal_kw * B.GAS_HEATING_AUX_ELECTRIC_FRACTION.value
+
+
 def _hourly_curve(
     config: BuildingConfig, scenario: StressScenario, energy: _EnergySplit
 ) -> tuple[float, ...]:
@@ -180,22 +156,28 @@ def _hourly_curve(
         if config.building_type == "homestay"
         else B.HOTEL_BASE_LOAD_SHARE.value
     )
-    # Space heating does not run in a July stress window; only the DHW share
-    # of electrified fuel shows up in the summer curve.
-    summer_elec_kwh = energy.elec_kwh - energy.hp_heat_elec_kwh * (
-        1.0 - B.DHW_SHARE_OF_FUEL.value
-    )
-    avg_kw = summer_elec_kwh / 8760.0
+    scenario_mean_temp = sum(scenario.hourly_temps_c) / len(scenario.hourly_temps_c)
+    cooling_season = scenario_mean_temp > B.COOLING_BALANCE_POINT_C.value
+    heating_season = scenario_mean_temp < B.HEATING_BALANCE_POINT_C.value
+
+    # Summer stress windows drop most electrified space heat; winter keeps it.
+    if cooling_season and not heating_season:
+        base_elec_kwh = energy.elec_kwh - energy.hp_heat_elec_kwh * (
+            1.0 - B.DHW_SHARE_OF_FUEL.value
+        )
+    else:
+        base_elec_kwh = energy.elec_kwh
+
+    avg_kw = base_elec_kwh / 8760.0
     occ_ratio = scenario.occupancy / B.AVG_ANNUAL_OCCUPANCY.value
     non_cooling_avg_kw = avg_kw * (1.0 - B.COOLING_SHARE_OF_ELECTRICITY.value)
 
-    # Interior-zone cooling keeps running through warm summer nights.
-    scenario_mean_temp = sum(scenario.hourly_temps_c) / len(scenario.hourly_temps_c)
-    cooling_season = scenario_mean_temp > B.COOLING_BALANCE_POINT_C.value
-    design_kw = floor_area_sqft(config) * B.PEAK_COOLING_W_PER_SQFT.value / 1000.0
+    design_cool_kw = floor_area_sqft(config) * B.PEAK_COOLING_W_PER_SQFT.value / 1000.0
     if config.hvac == "heat_pump":
-        design_kw /= B.COOLING_EER_RATIO_HEAT_PUMP.value
-    floor_kw = design_kw * B.COOLING_INTERNAL_FLOOR.value if cooling_season else 0.0
+        design_cool_kw /= B.COOLING_EER_RATIO_HEAT_PUMP.value
+    floor_kw = (
+        design_cool_kw * B.COOLING_INTERNAL_FLOOR.value if cooling_season else 0.0
+    )
 
     curve: list[float] = []
     for hour, temp in enumerate(scenario.hourly_temps_c):
@@ -206,8 +188,94 @@ def _hourly_curve(
         cooling_kw = max(_peak_cooling_kw(config, temp), floor_kw) * (
             0.6 + 0.4 * occ_ratio
         )
-        curve.append(round(occupancy_kw + cooling_kw, 4))
+        heating_kw = _peak_heating_kw(config, temp) * (0.7 + 0.3 * occ_ratio)
+        curve.append(round(occupancy_kw + cooling_kw + heating_kw, 4))
     return tuple(curve)
+
+
+def _day_temps(night_low: float, day_high: float) -> list[float]:
+    """Simple diurnal: night low near 5am, day high near 3pm."""
+    hours: list[float] = []
+    for h in range(24):
+        if 5 <= h <= 15:
+            t = (h - 5) / 10.0
+            hours.append(
+                night_low
+                + (day_high - night_low) * (0.5 - 0.5 * math.cos(math.pi * t))
+            )
+        elif h < 5:
+            hours.append(
+                night_low + (day_high - night_low) * 0.15 * (5 - h) / 5.0
+            )
+        else:
+            t = (h - 15) / 14.0
+            hours.append(day_high + (night_low - day_high) * min(1.0, t * 1.2))
+    return hours
+
+
+def _weekend_temps(day1: tuple[float, float], day2: tuple[float, float]) -> tuple[float, ...]:
+    return tuple(_day_temps(*day1) + _day_temps(*day2))
+
+
+# Toronto stress weekends, hour 0 = Saturday midnight. The heat-wave profile
+# peaks at 36.2 C, matching the documented July 14, 2026 Toronto heat event
+# (benchmarks.HEATWAVE_EVENT_PEAK_C carries the citation).
+_HEATWAVE_TEMPS: tuple[float, ...] = tuple(
+    [
+        25.0, 24.5, 24.0, 23.5, 23.5, 24.0,
+        25.5, 27.0, 29.0, 31.0, 32.5, 33.5,
+        34.5, 35.0, 35.5, 35.0, 34.0, 32.5,
+        31.0, 29.5, 28.0, 27.0, 26.0, 25.5,
+    ]
+    + [
+        25.5, 25.0, 24.5, 24.0, 24.0, 24.5,
+        26.0, 27.5, 29.5, 31.5, 33.0, 34.0,
+        35.0, 35.8, 36.2, 35.8, 34.5, 33.0,
+        31.5, 30.0, 28.5, 27.5, 26.5, 26.0,
+    ]
+)
+
+_TYPICAL_TEMPS: tuple[float, ...] = tuple(
+    [
+        19.0, 18.5, 18.0, 17.5, 17.5, 18.0,
+        19.0, 20.5, 22.0, 23.5, 24.5, 25.5,
+        26.0, 26.5, 27.0, 26.5, 25.5, 24.5,
+        23.5, 22.5, 21.5, 20.5, 20.0, 19.5,
+    ]
+    * 2
+)
+
+_SUMMER_SHOULDER_TEMPS = _weekend_temps((22.0, 29.5), (22.5, 30.0))
+_DEEP_COLD_TEMPS = _weekend_temps((-22.0, -12.0), (-21.0, -11.0))
+_WINTER_TYPICAL_TEMPS = _weekend_temps((-8.0, -1.0), (-7.0, 0.0))
+
+SCENARIOS: dict[str, StressScenario] = {
+    "heatwave_full": StressScenario(
+        name="Heat-Wave Weekend + Full Occupancy",
+        occupancy=1.0,
+        hourly_temps_c=_HEATWAVE_TEMPS,
+    ),
+    "summer_shoulder": StressScenario(
+        name="Summer Shoulder Weekend (~30 C)",
+        occupancy=0.85,
+        hourly_temps_c=_SUMMER_SHOULDER_TEMPS,
+    ),
+    "typical_weekend": StressScenario(
+        name="Typical July Weekend",
+        occupancy=0.65,
+        hourly_temps_c=_TYPICAL_TEMPS,
+    ),
+    "winter_typical": StressScenario(
+        name="Typical Winter Weekend",
+        occupancy=0.70,
+        hourly_temps_c=_WINTER_TYPICAL_TEMPS,
+    ),
+    "deep_cold_full": StressScenario(
+        name="Deep-Cold Weekend + Full Occupancy",
+        occupancy=1.0,
+        hourly_temps_c=_DEEP_COLD_TEMPS,
+    ),
+}
 
 
 def _strain(config: BuildingConfig, peak_kw: float) -> tuple[float, str]:
