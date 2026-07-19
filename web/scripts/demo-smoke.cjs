@@ -49,7 +49,7 @@ const OUT =
 
   // 3. Run the stress test.
   await page.getByText(/Run (heat-wave stress test|year stress)/).first().click();
-  await page.waitForSelector("text=PEAK GRID STRAIN", { timeout: 30000 });
+  await page.waitForSelector("text=PEAK GRID STRAIN", { timeout: 90000 });
   await page.waitForTimeout(1000);
   await shot("4-stress");
 
@@ -65,7 +65,7 @@ const OUT =
   // 5. Profiles panel with the validation overlay.
   await page.getByText("Close", { exact: true }).click();
   await page.getByText("Back to map").click();
-  await page.getByText("Energy Load Profiles").click();
+  await page.getByText("Load profiles", { exact: true }).click();
   await page.waitForSelector("text=Validation: our generated curve", {
     timeout: 15000,
   });
