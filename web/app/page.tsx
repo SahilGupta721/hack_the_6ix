@@ -352,13 +352,15 @@ export default function HomePage() {
   const viewportBusyRef = useRef(false);
   const handleViewportChange = useCallback(
     (lat: number, lng: number, zoom: number) => {
-      if (viewportBusyRef.current) return;
+      // Once a building is placed, freeze the parcel set so a look-around pan
+      // never orphans the placement; context buildings + pins still follow.
+      if (placed || viewportBusyRef.current) return;
       viewportBusyRef.current = true;
       void applyEmptySites("this view", lng, lat, zoom, false).finally(() => {
         viewportBusyRef.current = false;
       });
     },
-    [applyEmptySites],
+    [applyEmptySites, placed],
   );
 
   // Load OSM empty lands. Jump to the first green parcel unless we already

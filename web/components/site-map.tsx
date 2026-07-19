@@ -145,7 +145,11 @@ export function SiteMap({
 
       // Context buildings, pins, and (via the callback) green plots follow
       // wherever the user pans — not only searched or default locations.
-      map.on("moveend", () => {
+      // Only genuine user gestures (drag/scroll) carry an originalEvent;
+      // skipping programmatic flyTo (initial land, parcel select, search)
+      // keeps the auto-selected parcel from being orphaned by a refetch.
+      map.on("moveend", (e) => {
+        if (!(e as { originalEvent?: unknown }).originalEvent) return;
         if (map.getZoom() < 13) return;
         const c = map.getCenter();
         const last = lastFetchRef.current;
