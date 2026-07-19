@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useConversation } from "@elevenlabs/react";
+import { ConversationProvider, useConversation } from "@elevenlabs/react";
+import { useAuth } from "@/lib/use-auth";
 import type { BuildingType, OptionKey } from "@/lib/types";
 
 const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ?? "";
@@ -14,7 +15,17 @@ interface VoiceControllerProps {
   explainMemo: () => string;
 }
 
-export function VoiceController({
+// useConversation requires a ConversationProvider ancestor in this SDK
+// version, so the public component is a thin provider wrapper.
+export function VoiceController(props: VoiceControllerProps) {
+  return (
+    <ConversationProvider>
+      <VoiceControllerInner {...props} />
+    </ConversationProvider>
+  );
+}
+
+function VoiceControllerInner({
   onSetOption,
   onSetRooms,
   onSetType,
@@ -22,6 +33,7 @@ export function VoiceController({
   explainMemo,
 }: VoiceControllerProps) {
   const [error, setError] = useState<string | null>(null);
+  const auth = useAuth();
 
   const conversation = useConversation({
     clientTools: {
@@ -50,6 +62,14 @@ export function VoiceController({
         return "Running the fully booked heat-wave weekend stress test now.";
       },
       explain_memo: () => explainMemo(),
+      export_memo: () => {
+        if (auth.enabled && !auth.mfaVerified) {
+          auth.startStepUp();
+          return "Exporting needs identity verification. I have opened the step-up check; ask me again once you have verified.";
+        }
+        window.print();
+        return "Verified. Exporting the memo now.";
+      },
     },
   });
 

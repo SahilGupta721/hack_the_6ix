@@ -13,6 +13,12 @@ function hasAuth0Env(): boolean {
 
 export const auth0: Auth0Client | null = hasAuth0Env()
   ? new Auth0Client({
+      authorizationParameters: process.env.AUTH0_AUDIENCE
+        ? {
+            audience: process.env.AUTH0_AUDIENCE,
+            scope: "openid profile email offline_access",
+          }
+        : undefined,
       // Avoid Auth0 /oidc/logout "Oops" errors on many tenants; v2 + Allowed Logout URLs.
       logoutStrategy: "v2",
       includeIdTokenHintInOIDCLogoutUrl: false,

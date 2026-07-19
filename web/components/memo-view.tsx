@@ -105,6 +105,9 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
           <div className="memo-letterhead-row">
             <p className="memo-brand">INN-SIGHT</p>
             <p className="memo-meta">
+              {auth.enabled && auth.mfaVerified
+                ? "Export verified via Auth0 step-up MFA · "
+                : ""}
               {isYearPack
                 ? "Green AI · year-pack portfolio memo"
                 : "Comparative development memo"}

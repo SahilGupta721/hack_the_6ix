@@ -14,7 +14,8 @@ from typing import Any
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, HTTPException, Query
+from app.auth import current_sub, enforcement_on
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.mongo import collection
 
@@ -264,18 +265,23 @@ def runs_summary() -> dict[str, Any]:
 def runs_mine(
     auth0_sub: str = Query(min_length=3),
     limit: int = Query(default=20, ge=1, le=50),
+    verified_sub: str | None = Depends(current_sub),
 ) -> dict[str, Any]:
     """List recent runs for a signed-in user.
 
-    v1 trusts the client-provided auth0_sub (Auth0 UI gate). Production should
-    verify the Auth0 JWT server-side before relying on this endpoint.
+    With AUTH0_AUDIENCE configured, identity comes only from the verified
+    access token; the query parameter is ignored. Without it (open mode) the
+    client-asserted sub is used behind the Auth0 UI gate.
     """
+    effective_sub = verified_sub if enforcement_on() else auth0_sub
+    if not effective_sub:
+        raise HTTPException(status_code=401, detail="no verified identity")
     coll = _runs_collection()
     if coll is None:
         return {"available": False, "runs": [], "note": "MONGODB_URI not configured"}
     try:
         cursor = (
-            coll.find({"auth0_sub": auth0_sub})
+            coll.find({"auth0_sub": effective_sub})
             .sort("ts", -1)
             .limit(limit)
         )

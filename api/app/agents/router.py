@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException
+from app.auth import current_sub, enforcement_on
 from pydantic import BaseModel, Field
 
 from app.agents.orchestrator import ALL_AGENT_IDS, run_briefing, run_year_briefing
@@ -39,7 +40,10 @@ class YearBriefingRequest(BaseModel):
 
 
 @router.post("/briefing")
-async def briefing(req: BriefingRequest) -> dict:
+async def briefing(
+    req: BriefingRequest,
+    verified_sub: str | None = Depends(current_sub),
+) -> dict:
     if req.include_agents:
         unknown = [a for a in req.include_agents if a not in ALL_AGENT_IDS]
         if unknown:
@@ -72,7 +76,7 @@ async def briefing(req: BriefingRequest) -> dict:
         generator=result.generator,
         fallback_reason=result.fallback_reason,
         briefs=briefs_dump,
-        auth0_sub=req.auth0_sub,
+        auth0_sub=verified_sub if enforcement_on() else req.auth0_sub,
         report={
             "kind": "briefing",
             "comparison": payload["comparison"],
@@ -87,7 +91,10 @@ async def briefing(req: BriefingRequest) -> dict:
 
 
 @router.post("/briefing/year")
-async def briefing_year(req: YearBriefingRequest) -> dict:
+async def briefing_year(
+    req: YearBriefingRequest,
+    verified_sub: str | None = Depends(current_sub),
+) -> dict:
     if req.include_agents:
         unknown = [a for a in req.include_agents if a not in ALL_AGENT_IDS]
         if unknown:
@@ -121,7 +128,7 @@ async def briefing_year(req: YearBriefingRequest) -> dict:
         generator=result.generator,
         fallback_reason=result.fallback_reason,
         briefs=briefs_dump,
-        auth0_sub=req.auth0_sub,
+        auth0_sub=verified_sub if enforcement_on() else req.auth0_sub,
         structure_a=req.structure_a,
         hvac_a=req.hvac_a,
         structure_b=req.structure_b,

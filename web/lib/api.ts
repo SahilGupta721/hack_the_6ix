@@ -17,10 +17,32 @@ export interface OptionOverrides {
   hvac_b: Hvac;
 }
 
+// When Auth0 is on, API calls carry the SDK-minted access token so the
+// backend can verify identity itself (AUTH0_AUDIENCE mode). Cached briefly.
+let cachedToken: { value: string; until: number } | null = null;
+
+async function authHeader(): Promise<Record<string, string>> {
+  if (process.env.NEXT_PUBLIC_FLAG_AUTH0 !== "true") return {};
+  const now = Date.now();
+  if (cachedToken && cachedToken.until > now) {
+    return { authorization: `Bearer ${cachedToken.value}` };
+  }
+  try {
+    const res = await fetch("/auth/access-token");
+    if (!res.ok) return {};
+    const data = (await res.json()) as { token?: string };
+    if (!data.token) return {};
+    cachedToken = { value: data.token, until: now + 30_000 };
+    return { authorization: `Bearer ${data.token}` };
+  } catch {
+    return {};
+  }
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(await authHeader()) },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
@@ -28,7 +50,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
   return (await res.json()) as T;
 }

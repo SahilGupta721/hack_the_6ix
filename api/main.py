@@ -15,7 +15,7 @@ import sys
 if str(_API_DIR) not in sys.path:
     sys.path.insert(0, str(_API_DIR))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -35,6 +35,12 @@ from app.area import router as area_router
 from app.geocode import router as geocode_router
 from app.renders import router as renders_router
 from app.sites import router as sites_router
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+
+from app.auth import current_sub, enforcement_on
 from app.stay22 import router as stay22_router
 from app.storage import record_run
 from app.storage import router as storage_router
@@ -61,6 +67,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Per-client rate limiting (IP-keyed; generous defaults sized for a live
+# demo, tight enough to blunt scripted abuse of the Gemini-backed endpoints).
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault(
+        "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
+    )
+    return response
+
 
 app.include_router(stay22_router)
 app.include_router(renders_router)
@@ -153,7 +179,10 @@ def simulate(req: SimulateRequest) -> dict[str, object]:
 
 
 @app.post("/memo")
-def memo(req: CompareRequest) -> dict[str, object]:
+def memo(
+    req: CompareRequest,
+    verified_sub: str | None = Depends(current_sub),
+) -> dict[str, object]:
     config_a = BuildingConfig(
         req.building_type, req.rooms, req.structure_a, req.hvac_a,
         "Option A: Concrete + Central HVAC"
@@ -173,7 +202,7 @@ def memo(req: CompareRequest) -> dict[str, object]:
     )
     record_run(
         memo_data,
-        auth0_sub=req.auth0_sub,
+        auth0_sub=verified_sub if enforcement_on() else req.auth0_sub,
         structure_a=req.structure_a,
         hvac_a=req.hvac_a,
         structure_b=req.structure_b,
