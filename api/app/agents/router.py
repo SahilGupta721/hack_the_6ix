@@ -65,6 +65,7 @@ async def briefing(req: BriefingRequest) -> dict:
 
     from app.storage import record_briefing_run
 
+    payload = result.model_dump()
     briefs_dump = {k: v.model_dump() for k, v in result.briefs.items()}
     record_briefing_run(
         comparison=result.comparison,
@@ -72,8 +73,17 @@ async def briefing(req: BriefingRequest) -> dict:
         fallback_reason=result.fallback_reason,
         briefs=briefs_dump,
         auth0_sub=req.auth0_sub,
+        report={
+            "kind": "briefing",
+            "comparison": payload["comparison"],
+            "briefs": payload["briefs"],
+            "synthesis": payload["synthesis"],
+            "generator": payload["generator"],
+            "fallback_reason": payload.get("fallback_reason"),
+            "ai_energy": payload.get("ai_energy"),
+        },
     )
-    return result.model_dump()
+    return payload
 
 
 @router.post("/briefing/year")
@@ -103,6 +113,7 @@ async def briefing_year(req: YearBriefingRequest) -> dict:
 
     from app.storage import record_year_pack_run
 
+    payload = result.model_dump()
     briefs_dump = {k: v.model_dump() for k, v in result.briefs.items()}
     record_year_pack_run(
         memo=result.memo,
@@ -115,5 +126,18 @@ async def briefing_year(req: YearBriefingRequest) -> dict:
         hvac_a=req.hvac_a,
         structure_b=req.structure_b,
         hvac_b=req.hvac_b,
+        report={
+            "kind": "year_pack",
+            "scenarios": payload["scenarios"],
+            "matrix_summary": payload["matrix_summary"],
+            "briefs": payload["briefs"],
+            "synthesis": payload["synthesis"],
+            "memo": payload["memo"],
+            "generator": payload["generator"],
+            "fallback_reason": payload.get("fallback_reason"),
+            "comparison": payload["comparison"],
+            "climate": payload.get("climate"),
+            "ai_energy": payload.get("ai_energy"),
+        },
     )
-    return result.model_dump()
+    return payload

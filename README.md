@@ -62,7 +62,7 @@ Honesty first: this table says exactly what is real and what is a labelled simul
 | Agent inference footprint | Token usage from Gemini `usage_metadata` when live; energy/gCO2e are labelled estimates (~0.3 Wh/1k tokens × live Electricity Maps or TAF Ontario gCO2e/kWh); shown on year-pack memo + physics log |
 | Year-pack parallel stress | One action runs all five extreme weekends in parallel (deterministic sim matrix, location climate when live); shared Stay22/env gather; ~8 Gemini calls total (6 specialists + year boss + one portfolio memo), not 5× full briefing |
 | Seasonal stress scenarios | Named extreme weekends (heat-wave, summer shoulder, typical July, typical winter, deep cold); 48h peak curves with heating + cooling; annual energy still CBECS averages, not 8760h weather |
-| Per-user past runs | Mongo `memo_runs` metadata when Auth0 signed in (scenario, recommendation, generators, honesty note; `kind=year_pack` for year runs); no Stay22 listings; JWT verification still a follow-up |
+| Per-user past runs | Mongo `memo_runs` metadata + reopenable `report` blob (year memo, multi-agent briefs, scenario matrix) when Auth0 signed in; click Past runs to restore; no Stay22 listings; JWT verification still a follow-up |
 | Memo narrative | Gemini structured output over real computed numbers (single-scenario or year portfolio); deterministic fallback without a key, generator labelled in-UI |
 | Streetscape renders | Illustrative AI imagery, labelled, static fallback disclosed |
 | Community friction score | Documented heuristic (`model/friction.md`), not survey data |

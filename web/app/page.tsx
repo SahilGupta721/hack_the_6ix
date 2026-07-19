@@ -19,6 +19,7 @@ import { TopBar } from "@/components/top-bar";
 import {
   fetchYearBriefing,
   type OptionOverrides,
+  type PastRunDetail,
 } from "@/lib/api";
 import {
   OPTION_PRESETS,
@@ -179,6 +180,58 @@ export default function HomePage() {
   const appendLog = useCallback((line: string) => {
     setLog((prev) => [...prev.slice(-9), line]);
   }, []);
+
+  const handleOpenPastRun = useCallback(
+    (detail: PastRunDetail) => {
+      const report = detail.report;
+      if (!report) return;
+
+      setYearScenarios(null);
+      setMatrixSummary(null);
+      setClimateMeta(null);
+      setComparison(null);
+      setBriefs(null);
+      setSynthesis(null);
+      setBriefingGenerator(null);
+      setBriefingFallbackReason(null);
+      setMemo(null);
+
+      if (report.kind === "year_pack") {
+        setYearScenarios(report.scenarios);
+        setMatrixSummary(report.matrix_summary);
+        setClimateMeta(report.climate ?? null);
+        setComparison(report.comparison);
+        setBriefs(report.briefs);
+        setSynthesis(report.synthesis);
+        setBriefingGenerator(report.generator);
+        setBriefingFallbackReason(report.fallback_reason ?? null);
+        setMemo(report.memo);
+        setOverlay("stress");
+        appendLog(
+          `Reopened year pack from ${formatRunTs(detail.ts)} (${report.generator}).`,
+        );
+        return;
+      }
+
+      if (report.kind === "briefing") {
+        setComparison(report.comparison);
+        setBriefs(report.briefs);
+        setSynthesis(report.synthesis);
+        setBriefingGenerator(report.generator);
+        setBriefingFallbackReason(report.fallback_reason ?? null);
+        setOverlay("stress");
+        appendLog(
+          `Reopened briefing from ${formatRunTs(detail.ts)} (${report.generator}).`,
+        );
+        return;
+      }
+
+      setMemo(report.memo);
+      setOverlay("memo");
+      appendLog(`Reopened memo from ${formatRunTs(detail.ts)}.`);
+    },
+    [appendLog],
+  );
 
   const invalidate = useCallback(() => {
     runToken.current += 1; // discard any in-flight run for the old parameters
@@ -581,7 +634,7 @@ export default function HomePage() {
           {overlay === "memo" && memo && (
             <MemoView
               memo={memo}
-              onClose={() => setOverlay("stress")}
+              onClose={() => setOverlay(comparison ? "stress" : "none")}
               onNeedSignIn={() => setSignIn({ open: true, reason: "export" })}
             />
           )}
@@ -590,6 +643,7 @@ export default function HomePage() {
               auth0Sub={auth.sub}
               loggedIn={auth.loggedIn}
               onClose={() => setOverlay("none")}
+              onOpenRun={handleOpenPastRun}
             />
           )}
           {overlay === "profiles" && (
@@ -667,6 +721,17 @@ export default function HomePage() {
       />
     </div>
   );
+}
+
+function formatRunTs(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("en-CA", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return iso;
+  }
 }
 
 function IconRail() {

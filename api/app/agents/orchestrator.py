@@ -123,16 +123,21 @@ def _run_specialists(
     include: list[str],
 ) -> dict[str, AgentBrief]:
     selected = [aid for aid in include if aid in SPECIALISTS]
-    # Propagate ai_energy ContextVars into worker threads.
-    ctx_copy = contextvars.copy_context()
-
-    def _one(agent_id: str) -> tuple[str, AgentBrief]:
-        return ctx_copy.run(SPECIALISTS[agent_id], provider, ctx), agent_id
-
+    # One Context per worker — a shared Context cannot be entered concurrently
+    # (RuntimeError: cannot enter context: ... is already entered).
     briefs: dict[str, AgentBrief] = {}
     with ThreadPoolExecutor(max_workers=max(1, len(selected))) as pool:
-        for brief, agent_id in pool.map(_one, selected):
-            briefs[agent_id] = brief
+        futures = {
+            pool.submit(
+                contextvars.copy_context().run,
+                SPECIALISTS[agent_id],
+                provider,
+                ctx,
+            ): agent_id
+            for agent_id in selected
+        }
+        for fut, agent_id in futures.items():
+            briefs[agent_id] = fut.result()
     return briefs
 
 

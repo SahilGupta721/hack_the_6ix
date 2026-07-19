@@ -178,6 +178,7 @@ def memo(req: CompareRequest) -> dict[str, object]:
         hvac_a=req.hvac_a,
         structure_b=req.structure_b,
         hvac_b=req.hvac_b,
+        report={"kind": "memo", "memo": memo_data},
     )
     return memo_data
 

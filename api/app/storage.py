@@ -1,9 +1,10 @@
 """MongoDB Atlas persistence for memo / briefing runs.
 
-Stores run metadata only (config, results, recommendation, generators), never
-Stay22 listing data. Degrades to a no-op when MONGODB_URI is absent so the core
-loop never depends on the database. The summary endpoint is an aggregation
-pipeline, per the Atlas track's preference for Atlas-native features.
+Stores run metadata plus a reopenable `report` blob (memo / briefs / matrix)
+so Past runs can restore the stress + memo UI. Never stores Stay22 listing
+data. Degrades to a no-op when MONGODB_URI is absent so the core loop never
+depends on the database. The summary endpoint is an aggregation pipeline, per
+the Atlas track's preference for Atlas-native features.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Query
 
 from app.mongo import collection
@@ -27,6 +30,36 @@ def _runs_collection() -> Any | None:
     return collection("memo_runs")
 
 
+def _list_item(doc: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(doc.get("_id")),
+        "ts": doc.get("ts").isoformat()
+        if hasattr(doc.get("ts"), "isoformat")
+        else doc.get("ts"),
+        "scenario": doc.get("scenario"),
+        "building_type": doc.get("building_type"),
+        "rooms": doc.get("rooms"),
+        "structure_a": doc.get("structure_a"),
+        "hvac_a": doc.get("hvac_a"),
+        "structure_b": doc.get("structure_b"),
+        "hvac_b": doc.get("hvac_b"),
+        "recommended": doc.get("recommended"),
+        "abatement_cost": doc.get("abatement_cost"),
+        "tco2e_delta": doc.get("tco2e_delta"),
+        "capex_delta": doc.get("capex_delta"),
+        "narrative_generator": doc.get("narrative_generator"),
+        "fallback_reason": doc.get("fallback_reason"),
+        "briefing_generator": doc.get("briefing_generator"),
+        "briefing_fallback_reason": doc.get("briefing_fallback_reason"),
+        "agent_source_statuses": doc.get("agent_source_statuses") or [],
+        "honesty_note": doc.get("honesty_note") or HONESTY_NOTE,
+        "kind": doc.get("kind") or "memo",
+        "has_report": isinstance(doc.get("report"), dict) and bool(doc.get("report")),
+        "flip_scenarios": doc.get("flip_scenarios") or [],
+        "worst_peak_scenario": doc.get("worst_peak_scenario"),
+    }
+
+
 def record_run(
     memo: dict[str, Any],
     *,
@@ -38,6 +71,7 @@ def record_run(
     hvac_a: str | None = None,
     structure_b: str | None = None,
     hvac_b: str | None = None,
+    report: dict[str, Any] | None = None,
 ) -> None:
     coll = _runs_collection()
     if coll is None:
@@ -65,7 +99,10 @@ def record_run(
             "briefing_fallback_reason": briefing_fallback_reason,
             "agent_source_statuses": agent_source_statuses or [],
             "honesty_note": HONESTY_NOTE,
+            "kind": "memo",
         }
+        if report:
+            doc["report"] = report
         if auth0_sub:
             doc["auth0_sub"] = auth0_sub
         coll.insert_one(doc)
@@ -80,6 +117,7 @@ def record_briefing_run(
     fallback_reason: str | None,
     briefs: dict[str, Any],
     auth0_sub: str | None = None,
+    report: dict[str, Any] | None = None,
 ) -> None:
     """Persist a briefing-only summary when memo is not yet available."""
     coll = _runs_collection()
@@ -116,6 +154,8 @@ def record_briefing_run(
             "honesty_note": HONESTY_NOTE,
             "kind": "briefing",
         }
+        if report:
+            doc["report"] = report
         if auth0_sub:
             doc["auth0_sub"] = auth0_sub
         coll.insert_one(doc)
@@ -135,8 +175,9 @@ def record_year_pack_run(
     hvac_a: str | None = None,
     structure_b: str | None = None,
     hvac_b: str | None = None,
+    report: dict[str, Any] | None = None,
 ) -> None:
-    """Persist year-pack summary (kind=year_pack)."""
+    """Persist year-pack summary + reopenable report (kind=year_pack)."""
     coll = _runs_collection()
     if coll is None:
         return
@@ -178,6 +219,8 @@ def record_year_pack_run(
             "flip_scenarios": matrix_summary.get("flip_scenarios") or [],
             "worst_peak_scenario": matrix_summary.get("worst_peak_scenario"),
         }
+        if report:
+            doc["report"] = report
         if auth0_sub:
             doc["auth0_sub"] = auth0_sub
         coll.insert_one(doc)
@@ -236,34 +279,35 @@ def runs_mine(
             .sort("ts", -1)
             .limit(limit)
         )
-        runs = []
-        for doc in cursor:
-            runs.append(
-                {
-                    "id": str(doc.get("_id")),
-                    "ts": doc.get("ts").isoformat()
-                    if hasattr(doc.get("ts"), "isoformat")
-                    else doc.get("ts"),
-                    "scenario": doc.get("scenario"),
-                    "building_type": doc.get("building_type"),
-                    "rooms": doc.get("rooms"),
-                    "structure_a": doc.get("structure_a"),
-                    "hvac_a": doc.get("hvac_a"),
-                    "structure_b": doc.get("structure_b"),
-                    "hvac_b": doc.get("hvac_b"),
-                    "recommended": doc.get("recommended"),
-                    "abatement_cost": doc.get("abatement_cost"),
-                    "tco2e_delta": doc.get("tco2e_delta"),
-                    "capex_delta": doc.get("capex_delta"),
-                    "narrative_generator": doc.get("narrative_generator"),
-                    "fallback_reason": doc.get("fallback_reason"),
-                    "briefing_generator": doc.get("briefing_generator"),
-                    "briefing_fallback_reason": doc.get("briefing_fallback_reason"),
-                    "agent_source_statuses": doc.get("agent_source_statuses") or [],
-                    "honesty_note": doc.get("honesty_note") or HONESTY_NOTE,
-                    "kind": doc.get("kind") or "memo",
-                }
-            )
+        runs = [_list_item(doc) for doc in cursor]
         return {"available": True, "runs": runs}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"runs query failed: {exc}") from exc
+
+
+@router.get("/runs/{run_id}")
+def run_detail(
+    run_id: str,
+    auth0_sub: str = Query(min_length=3),
+) -> dict[str, Any]:
+    """Return one run with its reopenable report blob (if stored).
+
+    Scoped by auth0_sub (same trust model as /runs/mine). Older metadata-only
+    runs return has_report=false and report=null.
+    """
+    coll = _runs_collection()
+    if coll is None:
+        raise HTTPException(status_code=503, detail="MONGODB_URI not configured")
+    try:
+        oid = ObjectId(run_id)
+    except InvalidId as exc:
+        raise HTTPException(status_code=400, detail="invalid run id") from exc
+    try:
+        doc = coll.find_one({"_id": oid, "auth0_sub": auth0_sub})
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"runs query failed: {exc}") from exc
+    if doc is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    item = _list_item(doc)
+    report = doc.get("report") if isinstance(doc.get("report"), dict) else None
+    return {**item, "report": report}

@@ -126,12 +126,57 @@ export interface PastRun {
   agent_source_statuses: string[];
   honesty_note: string;
   kind: string;
+  has_report?: boolean;
+  flip_scenarios?: string[];
+  worst_peak_scenario?: string | null;
+}
+
+/** Reopenable blob stored on newer runs (year_pack / briefing / memo). */
+export type PastRunReport =
+  | {
+      kind: "year_pack";
+      scenarios: YearBriefing["scenarios"];
+      matrix_summary: YearBriefing["matrix_summary"];
+      briefs: YearBriefing["briefs"];
+      synthesis: YearBriefing["synthesis"];
+      memo: Memo;
+      generator: string;
+      fallback_reason?: string | null;
+      comparison: Comparison;
+      climate?: YearBriefing["climate"];
+      ai_energy?: YearBriefing["ai_energy"];
+    }
+  | {
+      kind: "briefing";
+      comparison: Comparison;
+      briefs: Briefing["briefs"];
+      synthesis: Briefing["synthesis"];
+      generator: string;
+      fallback_reason?: string | null;
+      ai_energy?: Briefing["ai_energy"];
+    }
+  | {
+      kind: "memo";
+      memo: Memo;
+    };
+
+export interface PastRunDetail extends PastRun {
+  report: PastRunReport | null;
 }
 
 export function fetchMyRuns(
   auth0Sub: string,
 ): Promise<{ available: boolean; runs: PastRun[]; note?: string }> {
   return get(`/runs/mine?auth0_sub=${encodeURIComponent(auth0Sub)}`);
+}
+
+export function fetchRun(
+  runId: string,
+  auth0Sub: string,
+): Promise<PastRunDetail> {
+  return get(
+    `/runs/${encodeURIComponent(runId)}?auth0_sub=${encodeURIComponent(auth0Sub)}`,
+  );
 }
 
 /** Upsert Auth0 profile into MongoDB InnSight.auth (signup / login sync). */
