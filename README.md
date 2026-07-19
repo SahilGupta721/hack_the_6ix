@@ -6,7 +6,7 @@ Place a hotel, homestay, or B&B on a real Toronto map, toggle concrete vs mass t
 
 Built at Hack the 6ix 2026.
 
-**Live:** [app](https://hack-the-6ix-tawny.vercel.app) (API on Render free tier cold-starts ~50 s on first request) · [venture page + waitlist](https://inn-sight.base44.app)
+**Live:** [app](https://hack-the-6ix-tawny.vercel.app) (API on Render free tier cold-starts ~50 s on first request)
 
 ## Stack
 
