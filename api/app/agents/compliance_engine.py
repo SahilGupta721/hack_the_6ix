@@ -90,13 +90,26 @@ def estimate_height_m(storeys: int | None, storey_height_m: float) -> float | No
     return round(storeys * storey_height_m, 2)
 
 
+def _benchmark_sqft(building_type: str) -> float:
+    """Single source of truth: the sim's sourced per-room areas."""
+    try:
+        from innsight_model.benchmarks import SQFT_PER_ROOM
+
+        record = SQFT_PER_ROOM.get(building_type)
+        if record is not None:
+            return float(record.value)
+    except Exception:
+        pass
+    return 350.0
+
+
 def estimate_gfa_m2(
     rooms: int,
     building_type: str,
     assumptions: dict[str, Any],
 ) -> float:
     sqft_map = assumptions.get("sqft_per_room") or {}
-    sqft = _f(sqft_map.get(building_type), 350.0)
+    sqft = _f(sqft_map.get(building_type), _benchmark_sqft(building_type))
     m2_per_sqft = _f(assumptions.get("m2_per_sqft"), 0.092903)
     return round(rooms * sqft * m2_per_sqft, 1)
 

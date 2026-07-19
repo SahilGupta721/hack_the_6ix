@@ -95,3 +95,19 @@ def test_specialist_keeps_checks_in_metrics() -> None:
     assert len(checks) >= 5
     assert brief.metrics.get("gate") is False
     assert "tallies" in brief.metrics
+
+
+def test_compliance_gfa_matches_sim_floor_area() -> None:
+    """The compliance panel and the memo must describe the same building."""
+    from app.agents.compliance_engine import estimate_gfa_m2
+    from innsight_model.benchmarks import SQFT_PER_ROOM
+    from innsight_model.sim import BuildingConfig, floor_area_sqft
+
+    for bt in ("homestay", "boutique", "tower"):
+        rooms = 40
+        sim_m2 = floor_area_sqft(
+            BuildingConfig(bt, rooms, "concrete", "central_gas")
+        ) * 0.092903
+        pack = {"sqft_per_room": {bt: SQFT_PER_ROOM[bt].value}}
+        engine_m2 = estimate_gfa_m2(rooms, bt, pack)
+        assert abs(engine_m2 - sim_m2) < 1.0, (bt, engine_m2, sim_m2)
