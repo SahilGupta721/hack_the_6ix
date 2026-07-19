@@ -24,7 +24,12 @@ def mongo_client() -> Any | None:
     try:
         from pymongo import MongoClient
 
-        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        client = MongoClient(
+            uri,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000,
+            socketTimeoutMS=8000,
+        )
         client.admin.command("ping")
         _client = client
         _checked = True
