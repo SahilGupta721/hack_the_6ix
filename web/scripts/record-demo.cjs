@@ -22,7 +22,7 @@ const OUT = process.argv[2] || "/tmp/innsight-demo";
     await page.waitForTimeout(2500);
   }
 
-  await page.getByText("Place building at 45 The Esplanade").click();
+  await page.getByRole("button", { name: /Place building at/ }).click({ timeout: 30000 });
   await page.waitForTimeout(2500);
 
   await page.getByText("Option B", { exact: false }).first().click();

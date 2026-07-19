@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RailThumb } from "@/components/component-icons";
 import {
   DesignPanel,
@@ -49,7 +49,12 @@ import {
   DEFAULT_SCENARIO,
   type StressScenarioKey,
 } from "@/lib/scenarios";
-import { defaultActiveSite, type ActiveSite } from "@/lib/site";
+import {
+  mapFrameSite,
+  loadSavedActiveSite,
+  saveActiveSite,
+  type ActiveSite,
+} from "@/lib/site";
 import { useAuth } from "@/lib/use-auth";
 import type {
   AgentBrief,
@@ -118,10 +123,9 @@ export default function HomePage() {
   const [overlay, setOverlay] = useState<Overlay>("none");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  // Default framing stays on the curated, imagery-aligned Esplanade parcel;
-  // OSM candidates render as green options and only a click switches to one.
+  // Map framing only until a green OSM parcel is selected (no Esplanade starter).
   const [activeSite, setActiveSite] = useState<ActiveSite>(() =>
-    defaultActiveSite(),
+    loadSavedActiveSite() ?? mapFrameSite(),
   );
   // No hard-coded boot pads: candidates stay empty until the parcel API
   // answers (live OSM -> session cache -> curated -> labelled approx pads).
@@ -148,9 +152,9 @@ export default function HomePage() {
     const wasEntered = sessionStorage.getItem(ENTERED_KEY) === "1";
 
     if (wantsEnter) {
-      if (auth.enabled && auth.loading) return;
+      if (FLAGS.auth0 && auth.loading) return;
       window.history.replaceState({}, "", "/");
-      if (!auth.enabled || auth.loggedIn) {
+      if (!FLAGS.auth0 || auth.loggedIn) {
         enterApp();
         return;
       }
@@ -159,7 +163,7 @@ export default function HomePage() {
     }
 
     // After logout (or expired session), always show landing — never restore the assembler.
-    if (auth.enabled) {
+    if (FLAGS.auth0) {
       if (auth.loading) return;
       if (!auth.loggedIn) {
         sessionStorage.removeItem(ENTERED_KEY);
@@ -169,16 +173,16 @@ export default function HomePage() {
     }
 
     if (wasEntered) setEntered(true);
-  }, [auth.enabled, auth.loading, auth.loggedIn, enterApp]);
+  }, [auth.loading, auth.loggedIn, enterApp]);
 
   const handleGetStarted = useCallback(() => {
     // Don't wait forever on a hung /auth/profile — open sign-in right away.
-    if (auth.enabled && !auth.loggedIn) {
+    if (FLAGS.auth0 && !auth.loggedIn) {
       setSignIn({ open: true, reason: "start" });
       return;
     }
     enterApp();
-  }, [auth.enabled, auth.loggedIn, enterApp]);
+  }, [auth.loggedIn, enterApp]);
 
   const appendLog = useCallback((line: string) => {
     setLog((prev) => [...prev.slice(-9), line]);
@@ -293,11 +297,11 @@ export default function HomePage() {
       if (jumpToFirst) {
         setSelectedCandidateId(first?.id ?? null);
         setActiveSite({
-          name: placeName,
+          name: first?.label ?? placeName,
           lng: first?.center.lng ?? lng,
           lat: first?.center.lat ?? lat,
           zoom,
-          polygon: first?.polygon ?? defaultActiveSite().polygon,
+          polygon: first?.polygon ?? null,
         });
         setPlaced(false);
         invalidate();
@@ -320,31 +324,46 @@ export default function HomePage() {
 
       appendLog(
         fromOsm
-          ? `Found ${sites.length} empty OSM parcels (parking / brownfield / open land); click green to select.`
+          ? `Found ${sites.length} OSM open-land / parking parcels (may sit a few metres off the 2025 ortho — click imagery to verify).`
           : `No OSM empty land nearby; ${sites.length} approximate pads. Check imagery before placing.`,
       );
     },
     [appendLog, invalidate],
   );
 
-  // Load candidate parcels around the default Toronto site without moving
-  // the camera off the curated demo framing.
+  // Load OSM empty lands. Jump to the first green parcel unless we already
+  // restored a saved selection from this tab.
   useEffect(() => {
     if (!entered) return;
-    const base = defaultActiveSite();
-    void applyEmptySites(base.name, base.lng, base.lat, base.zoom, false);
+    const frame = loadSavedActiveSite() ?? mapFrameSite();
+    const jumpToFirst = !frame.polygon;
+    void applyEmptySites(
+      frame.name,
+      frame.lng,
+      frame.lat,
+      frame.zoom,
+      jumpToFirst,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entered]);
 
+  useEffect(() => {
+    saveActiveSite(activeSite);
+  }, [activeSite]);
+
   const handlePlace = useCallback(() => {
+    if (!selectedCandidateId || !activeSite.polygon) {
+      appendLog("Click a green empty parcel on the map before placing.");
+      return;
+    }
     setPlaced(true);
     const label =
       candidates.find((c) => c.id === selectedCandidateId)?.label ??
       activeSite.name;
     appendLog(
-      `Building massing placed at ${label} (${activeSite.name}) — empty parcel selection.`,
+      `Building massing placed at ${label} — empty parcel selection.`,
     );
-  }, [activeSite.name, appendLog, candidates, selectedCandidateId]);
+  }, [activeSite.name, activeSite.polygon, appendLog, candidates, selectedCandidateId]);
 
   const handleSearchPlace = useCallback(
     (place: GeocodeResult) => {
@@ -461,40 +480,8 @@ export default function HomePage() {
     [invalidate, option],
   );
 
-  const handleRailSelect = useCallback(
-    (key: string) => {
-      const preset = RAIL_PRESETS.find((p) => p.key === key);
-      if (!preset) return;
-      const nextRooms =
-        preset.rooms ??
-        UI_TYPES.find((t) => t.key === preset.type)?.rooms ??
-        40;
-      setPlaced(true);
-      setUiType(preset.type);
-      setRooms(nextRooms);
-      setOption(preset.option);
-      invalidate();
-      appendLog(
-        `Preset: ${preset.label} · ${nextRooms} rooms · Option ${preset.option}.`,
-      );
-    },
-    [appendLog, invalidate],
-  );
-
-  const railActive =
-    RAIL_PRESETS.find((p) => {
-      const presetRooms =
-        p.rooms ?? UI_TYPES.find((t) => t.key === p.type)?.rooms ?? 40;
-      return (
-        placed &&
-        uiType === p.type &&
-        option === p.option &&
-        rooms === presetRooms
-      );
-    })?.key ?? null;
-
   const handleRunStressTest = useCallback(async () => {
-    if (auth.enabled && !auth.loggedIn) {
+    if (FLAGS.auth0 && !auth.loggedIn) {
       setSignIn({ open: true, reason: "stress" });
       return;
     }
@@ -508,7 +495,7 @@ export default function HomePage() {
       structure_b: deriveStructure(componentsByOption.B),
       hvac_b: deriveHvac(componentsByOption.B),
     };
-    const auth0Sub = auth.enabled && auth.sub ? auth.sub : undefined;
+    const auth0Sub = FLAGS.auth0 && auth.sub ? auth.sub : undefined;
     try {
       const year = await fetchYearBriefing(
         engineType,
@@ -633,13 +620,18 @@ export default function HomePage() {
   );
 
   const activeComponents = componentsByOption[option];
-  const building = placed
-    ? {
-        structure: deriveStructure(activeComponents),
-        floors: storeys,
-        shapeId,
-      }
-    : null;
+  const building = useMemo(
+    () =>
+      placed
+        ? {
+            structure: deriveStructure(activeComponents),
+            floors: storeys,
+            shapeId,
+            components: activeComponents,
+          }
+        : null,
+    [placed, activeComponents, storeys, shapeId],
+  );
 
   const selectedCandidate =
     candidates.find((c) => c.id === selectedCandidateId) ?? null;
@@ -701,15 +693,12 @@ export default function HomePage() {
         />
       )}
       <div className="relative flex min-h-0 flex-1">
-        <IconRail
-          active={railActive}
-          disabled={running}
-          onSelect={handleRailSelect}
-        />
+        <IconRail />
 
         <DesignPanel
           placed={placed}
           siteName={activeSite.name}
+          canPlace={Boolean(selectedCandidateId && activeSite.polygon)}
           uiType={uiType}
           rooms={rooms}
           storeys={storeys}
@@ -871,56 +860,17 @@ function formatRunTs(iso: string): string {
   }
 }
 
-const RAIL_PRESETS: {
-  key: string;
-  label: string;
-  type: UiBuildingType;
-  option: OptionKey;
-  rooms?: number;
-}[] = [
-  { key: "hotel", label: "Hotel", type: "hotel", option: "A" },
-  { key: "timber", label: "Timber hotel", type: "hotel", option: "B" },
-  { key: "tower", label: "Tower", type: "hotel", option: "A", rooms: 80 },
-  { key: "bnb", label: "B&B", type: "bnb", option: "A" },
-  { key: "homestay", label: "Homestay", type: "homestay", option: "B" },
-];
-
-function IconRail({
-  active,
-  disabled,
-  onSelect,
-}: {
-  active: string | null;
-  disabled?: boolean;
-  onSelect: (key: string) => void;
-}) {
+function IconRail() {
   return (
-    <div
-      className="relative z-10 flex w-11 shrink-0 flex-col items-center gap-2 border-r border-panel-border bg-panel py-3"
-      role="toolbar"
-      aria-label="Building presets"
-    >
-      {RAIL_PRESETS.map((preset, i) => {
-        const selected = active === preset.key;
-        return (
-          <button
-            key={preset.key}
-            type="button"
-            title={preset.label}
-            aria-label={preset.label}
-            aria-pressed={selected}
-            disabled={disabled}
-            onClick={() => onSelect(preset.key)}
-            className={`grid h-8 w-8 place-items-center rounded border transition-colors disabled:opacity-50 ${
-              selected
-                ? "border-[#5B9BD5] bg-[#EAF4FB]"
-                : "border-panel-border bg-panel-muted hover:bg-panel-muted/80"
-            }`}
-          >
-            <RailThumb index={i} />
-          </button>
-        );
-      })}
+    <div className="relative z-10 flex w-11 shrink-0 flex-col items-center gap-2 border-r border-panel-border bg-panel py-3">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          className="grid h-8 w-8 place-items-center rounded border border-panel-border bg-panel-muted"
+        >
+          <RailThumb index={i} />
+        </span>
+      ))}
     </div>
   );
 }

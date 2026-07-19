@@ -7,7 +7,12 @@ import {
   candidatesToFeatureCollection,
   type CandidateSite,
 } from "@/lib/candidate-sites";
-import { getShape, type ShapeId } from "@/lib/building-shape";
+import type { BuildComponents } from "@/lib/build-config";
+import type { ShapeId } from "@/lib/building-shape";
+import {
+  createModularBuildingLayer,
+  type ModularBuildingLayer,
+} from "@/lib/maplibre-three-layer";
 import type { ActiveSite } from "@/lib/site";
 import type { Structure } from "@/lib/types";
 
@@ -42,100 +47,13 @@ const SATELLITE_STYLE: maplibregl.StyleSpecification = {
   ],
 };
 
-const STRUCTURE_COLOUR: Record<Structure, string> = {
-  concrete: "#9aa5b1",
-  mass_timber: "#d97e3f",
-  steel: "#7d93a8",
-};
-
-function openRing(ring: GeoJSON.Position[]): GeoJSON.Position[] {
-  if (
-    ring.length > 1 &&
-    ring[0][0] === ring[ring.length - 1][0] &&
-    ring[0][1] === ring[ring.length - 1][1]
-  ) {
-    return ring.slice(0, -1);
-  }
-  return ring.slice();
-}
-
-function closeRing(ring: GeoJSON.Position[]): GeoJSON.Position[] {
-  if (ring.length === 0) return ring;
-  const first = ring[0];
-  const last = ring[ring.length - 1];
-  if (first[0] === last[0] && first[1] === last[1]) return ring;
-  return [...ring, [first[0], first[1]]];
-}
-
-/** Signed area in lng/lat; positive => counter-clockwise. */
-function ringSignedArea(open: GeoJSON.Position[]): number {
-  let sum = 0;
-  for (let i = 0; i < open.length; i++) {
-    const [x1, y1] = open[i];
-    const [x2, y2] = open[(i + 1) % open.length];
-    sum += x1 * y2 - x2 * y1;
-  }
-  return sum / 2;
-}
-
-/** MapLibre fill-extrusion expects CCW exterior rings. */
-function ensureCcw(open: GeoJSON.Position[]): GeoJSON.Position[] {
-  return ringSignedArea(open) < 0 ? open.slice().reverse() : open;
-}
-
-/**
- * Shrink parcel toward centroid. Uses a clean CCW ring so pitched extrusions
- * do not drop a corner (clockwise rings are a known MapLibre footgun).
- */
-function insetPolygon(
-  feature: GeoJSON.Feature<GeoJSON.Polygon>,
-  factor: number,
-): GeoJSON.Feature<GeoJSON.Polygon> {
-  const open = ensureCcw(openRing(feature.geometry.coordinates[0]));
-  if (open.length < 3) {
-    return feature;
-  }
-  const cx = open.reduce((s, p) => s + p[0], 0) / open.length;
-  const cy = open.reduce((s, p) => s + p[1], 0) / open.length;
-  const inset = open.map(([x, y]) => [
-    cx + (x - cx) * factor,
-    cy + (y - cy) * factor,
-  ]);
-  return {
-    type: "Feature",
-    properties: feature.properties ?? {},
-    geometry: { type: "Polygon", coordinates: [closeRing(inset)] },
-  };
-}
-
-const BUILDING_RING_COUNT = 3;
-
-function ringSourceId(i: number): string {
-  return `building-ring-src-${i}`;
-}
-
-function ringLayerId(i: number): string {
-  return `building-ring-layer-${i}`;
-}
-
-function emptyFc(): GeoJSON.FeatureCollection {
-  return { type: "FeatureCollection", features: [] };
-}
-
-function ensureBuildingRingLayers(map: maplibregl.Map): void {
-  for (let i = 0; i < BUILDING_RING_COUNT; i++) {
-    const srcId = ringSourceId(i);
-    if (!map.getSource(srcId)) {
-      map.addSource(srcId, { type: "geojson", data: emptyFc() });
-    }
-  }
-}
-
 export interface BuildingSpec {
   structure: Structure;
   /** Storey count (UI "Floors"). */
   floors: number;
   shapeId?: ShapeId;
+  /** Assembler kit — drives Three.js modular structure. */
+  components: BuildComponents;
 }
 
 interface SiteMapProps {
@@ -146,6 +64,8 @@ interface SiteMapProps {
   sitesNote?: string;
   onSelectCandidate: (site: CandidateSite) => void;
 }
+
+type ModularLayer = ModularBuildingLayer;
 
 export function SiteMap({
   building,
@@ -158,6 +78,7 @@ export function SiteMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const readyRef = useRef(false);
+  const threeLayerRef = useRef<ModularLayer | null>(null);
   const buildingRef = useRef<BuildingSpec | null>(building);
   const activeSiteRef = useRef(activeSite);
   const candidatesRef = useRef(candidates);
@@ -178,6 +99,7 @@ export function SiteMap({
       pitch: 55,
       bearing: -15,
       attributionControl: { compact: true },
+      canvasContextAttributes: { antialias: true },
     });
     mapRef.current = map;
 
@@ -188,10 +110,30 @@ export function SiteMap({
         type: "geojson",
         data: candidatesToFeatureCollection(candidatesRef.current),
       });
-      map.addSource("site", { type: "geojson", data: activeSite.polygon });
-      // Per-ring sources (nested footprints must not share one GeoJSON source —
-      // MapLibre's extrusion pass punches holes through overlapping features).
-      ensureBuildingRingLayers(map);
+      map.addSource("site", {
+        type: "geojson",
+        data: activeSite.polygon ?? {
+          type: "FeatureCollection",
+          features: [],
+        },
+      });
+
+      map.addSource("context-buildings", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "context-buildings",
+        type: "fill-extrusion",
+        source: "context-buildings",
+        paint: {
+          "fill-extrusion-color": "#d7dce2",
+          "fill-extrusion-height": ["get", "height"],
+          "fill-extrusion-opacity": 0.42,
+          "fill-extrusion-vertical-gradient": true,
+        },
+      });
+      void loadContextBuildings(map, activeSite.lat, activeSite.lng);
 
       map.addLayer({
         id: "candidates-fill",
@@ -224,23 +166,12 @@ export function SiteMap({
         source: "site",
         paint: { "line-color": "#c4a35a", "line-width": 2.5 },
       });
-      // Re-add ring layers above site fill so massing stays on top of the pad.
-      for (let i = 0; i < BUILDING_RING_COUNT; i++) {
-        const layerId = ringLayerId(i);
-        if (map.getLayer(layerId)) map.removeLayer(layerId);
-        map.addLayer({
-          id: layerId,
-          type: "fill-extrusion",
-          source: ringSourceId(i),
-          layout: { visibility: "none" },
-          paint: {
-            "fill-extrusion-color": ["get", "colour"],
-            "fill-extrusion-base": ["get", "base"],
-            "fill-extrusion-height": ["get", "height"],
-            "fill-extrusion-opacity": 0.96,
-            "fill-extrusion-vertical-gradient": true,
-          },
-        });
+
+      const threeLayer = createModularBuildingLayer();
+      threeLayerRef.current = threeLayer;
+      map.addLayer(threeLayer);
+      if (activeSite.polygon) {
+        threeLayer.sync(buildingRef.current, activeSite.polygon);
       }
 
       map.on("click", "candidates-fill", (e) => {
@@ -257,11 +188,11 @@ export function SiteMap({
       });
 
       readyRef.current = true;
-      syncBuilding(map, buildingRef.current, activeSite.polygon);
     });
 
     return () => {
       readyRef.current = false;
+      threeLayerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
@@ -278,8 +209,18 @@ export function SiteMap({
       duration: 1400,
     });
     const siteSrc = map.getSource("site") as maplibregl.GeoJSONSource | undefined;
-    siteSrc?.setData(activeSite.polygon);
-    syncBuilding(map, buildingRef.current, activeSite.polygon);
+    siteSrc?.setData(
+      activeSite.polygon ?? { type: "FeatureCollection", features: [] },
+    );
+    if (activeSite.polygon) {
+      threeLayerRef.current?.sync(buildingRef.current, activeSite.polygon);
+    } else {
+      threeLayerRef.current?.sync(null, {
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Polygon", coordinates: [] },
+      });
+    }
   }, [activeSite]);
 
   useEffect(() => {
@@ -290,15 +231,22 @@ export function SiteMap({
   }, [candidates]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (map && readyRef.current) {
-      syncBuilding(map, building, activeSiteRef.current.polygon);
+    if (!readyRef.current) return;
+    const poly = activeSiteRef.current.polygon;
+    if (poly) {
+      threeLayerRef.current?.sync(building, poly);
+    } else {
+      threeLayerRef.current?.sync(null, {
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Polygon", coordinates: [] },
+      });
     }
   }, [building]);
 
   const selectedLabel =
     candidates.find((c) => c.id === selectedCandidateId)?.label ??
-    activeSite.name;
+    (selectedCandidateId ? activeSite.name : "Click a green parcel");
 
   return (
     <div className="relative h-full w-full">
@@ -318,70 +266,29 @@ export function SiteMap({
       <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 max-w-md -translate-x-1/2 rounded-md bg-ink/80 px-3 py-1.5 text-center text-[10px] leading-snug text-white/90 backdrop-blur-sm">
         {sitesNote?.trim()
           ? sitesNote
-          : "Green = open OSM land. Click a parcel to select."}
+          : "Green = OSM open land / parking (may disagree slightly with ortho). Click a parcel to select."}
       </p>
     </div>
   );
 }
 
-function syncBuilding(
+async function loadContextBuildings(
   map: maplibregl.Map,
-  building: BuildingSpec | null,
-  parcel: GeoJSON.Feature<GeoJSON.Polygon>,
+  lat: number,
+  lng: number,
 ) {
-  ensureBuildingRingLayers(map);
-
-  const clearAll = () => {
-    for (let i = 0; i < BUILDING_RING_COUNT; i++) {
-      const src = map.getSource(ringSourceId(i)) as
-        | maplibregl.GeoJSONSource
-        | undefined;
-      src?.setData(emptyFc());
-      if (map.getLayer(ringLayerId(i))) {
-        map.setLayoutProperty(ringLayerId(i), "visibility", "none");
-      }
-    }
-  };
-
-  if (!building) {
-    clearAll();
-    return;
-  }
-
-  const shape = getShape(building.shapeId ?? "slab");
-  const rings = shape.massing(building.floors);
-  const colour = STRUCTURE_COLOUR[building.structure];
-  const metrePerStorey = 3.4;
-
-  for (let i = 0; i < BUILDING_RING_COUNT; i++) {
-    const src = map.getSource(ringSourceId(i)) as
-      | maplibregl.GeoJSONSource
-      | undefined;
-    const layerId = ringLayerId(i);
-    if (!src || !map.getLayer(layerId)) continue;
-
-    if (i >= rings.length) {
-      src.setData(emptyFc());
-      map.setLayoutProperty(layerId, "visibility", "none");
-      continue;
-    }
-
-    const ring = rings[i];
-    const poly = insetPolygon(parcel, ring.inset);
-    src.setData({
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          properties: {
-            colour,
-            base: ring.fromLevel * metrePerStorey,
-            height: ring.toLevel * metrePerStorey,
-          },
-          geometry: poly.geometry,
-        },
-      ],
-    });
-    map.setLayoutProperty(layerId, "visibility", "visible");
+  try {
+    const base = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+    const res = await fetch(
+      `${base}/sites/context?lat=${lat}&lng=${lng}&radius=450`,
+    );
+    if (!res.ok) return;
+    const data = (await res.json()) as GeoJSON.FeatureCollection;
+    const src = map.getSource(
+      "context-buildings",
+    ) as maplibregl.GeoJSONSource | undefined;
+    src?.setData(data);
+  } catch {
+    // Context layer is decorative; the map is complete without it.
   }
 }

@@ -35,8 +35,8 @@ const OUT =
   }
   await shot("1-map");
 
-  // 1. Place the building.
-  await page.getByText("Place building at 45 The Esplanade").click();
+  // 1. Wait for OSM parcel selection, then place.
+  await page.getByRole("button", { name: /Place building at/ }).click({ timeout: 30000 });
   await page.waitForTimeout(1200);
   await shot("2-placed");
 

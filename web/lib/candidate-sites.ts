@@ -17,8 +17,13 @@ const M2_PER_ACRE = 4046.8564224;
 
 /** Approx acres from a lon/lat polygon (equirectangular). */
 export function polygonAreaAcres(
-  polygon: GeoJSON.Feature<GeoJSON.Polygon> | GeoJSON.Polygon,
+  polygon:
+    | GeoJSON.Feature<GeoJSON.Polygon>
+    | GeoJSON.Polygon
+    | null
+    | undefined,
 ): number {
+  if (!polygon) return 0;
   const ring =
     polygon.type === "Feature"
       ? polygon.geometry.coordinates[0]

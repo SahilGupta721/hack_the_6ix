@@ -64,6 +64,8 @@ const COMPONENT_SECTIONS: {
 interface DesignPanelProps {
   placed: boolean;
   siteName: string;
+  /** False until a green OSM parcel is selected. */
+  canPlace?: boolean;
   uiType: UiBuildingType;
   rooms: number;
   storeys: number;
@@ -92,6 +94,7 @@ function fmt(n: number | null | undefined, suffix = "", digits = 0): string {
 export function DesignPanel({
   placed,
   siteName,
+  canPlace = true,
   uiType,
   rooms,
   storeys,
@@ -158,9 +161,12 @@ export function DesignPanel({
             <button
               type="button"
               onClick={onPlace}
-              className="mt-3 w-full rounded bg-ink px-3 py-2.5 text-[13px] font-semibold text-accent hover:bg-ink-raised"
+              disabled={!canPlace}
+              className="mt-3 w-full rounded bg-ink px-3 py-2.5 text-[13px] font-semibold text-accent hover:bg-ink-raised disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Place building at {shortName}
+              {canPlace
+                ? `Place building at ${shortName}`
+                : "Select a green parcel first"}
             </button>
           </div>
         ) : (

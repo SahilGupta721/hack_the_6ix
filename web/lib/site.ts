@@ -1,48 +1,81 @@
-// Demo site: 45 The Esplanade, Toronto. Geometry is illustrative, not a survey.
+// Map framing defaults to downtown Toronto. The old curated Esplanade pad is
+// no longer auto-selected — users pick a green OSM empty parcel instead.
 
 export interface ActiveSite {
   name: string;
   lng: number;
   lat: number;
   zoom: number;
-  polygon: GeoJSON.Feature<GeoJSON.Polygon>;
+  /** Selected parcel outline; null until the user (or OSM jump) picks land. */
+  polygon: GeoJSON.Feature<GeoJSON.Polygon> | null;
 }
 
 export const SITE = {
-  name: "45 The Esplanade",
+  name: "Toronto",
   projectTitle: "Project: 40-Room Hotel Initiative",
   lng: -79.37361,
   lat: 43.64736,
-  zoom: 17.6,
+  zoom: 16.4,
 } as const;
 
-// Parcel aligned to the open lot visible on the City of Toronto 2025
-// orthophoto beside The Esplanade (corners traced from the 8 cm imagery,
-// following the diagonal street grid). Illustrative, not permit-ready.
-export const SITE_POLYGON: GeoJSON.Feature<GeoJSON.Polygon> = {
-  type: "Feature",
-  properties: { id: "default", label: SITE.name },
-  geometry: {
-    type: "Polygon",
-    // Counter-clockwise exterior (MapLibre fill-extrusion / RFC 7944).
-    coordinates: [
-      [
-        [-79.373902, 43.647438],
-        [-79.373805, 43.64719],
-        [-79.373322, 43.647275],
-        [-79.373419, 43.647523],
-        [-79.373902, 43.647438],
-      ],
-    ],
-  },
-};
+const SITE_SESSION_KEY = "innsight-active-site";
 
-export function defaultActiveSite(): ActiveSite {
+/** Camera framing only — no gold starter parcel on the map. */
+export function mapFrameSite(): ActiveSite {
   return {
     name: SITE.name,
     lng: SITE.lng,
     lat: SITE.lat,
     zoom: SITE.zoom,
-    polygon: SITE_POLYGON,
+    polygon: null,
   };
+}
+
+/** @deprecated use mapFrameSite — kept for any leftover imports */
+export function defaultActiveSite(): ActiveSite {
+  return mapFrameSite();
+}
+
+function isLegacyEsplanade(site: ActiveSite): boolean {
+  const id = site.polygon?.properties?.id;
+  if (id === "default") return true;
+  const name = site.name.toLowerCase();
+  return name.includes("esplanade") && id !== undefined && !String(id).startsWith("empty-");
+}
+
+/** Restore last selected OSM/search site; ignore legacy Esplanade starter. */
+export function loadSavedActiveSite(): ActiveSite | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SITE_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ActiveSite;
+    if (
+      typeof parsed?.lng !== "number" ||
+      typeof parsed?.lat !== "number" ||
+      typeof parsed?.zoom !== "number"
+    ) {
+      return null;
+    }
+    if (isLegacyEsplanade(parsed) || !parsed.polygon) {
+      sessionStorage.removeItem(SITE_SESSION_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveActiveSite(site: ActiveSite): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (!site.polygon) {
+      sessionStorage.removeItem(SITE_SESSION_KEY);
+      return;
+    }
+    sessionStorage.setItem(SITE_SESSION_KEY, JSON.stringify(site));
+  } catch {
+    // ignore quota / private mode
+  }
 }
