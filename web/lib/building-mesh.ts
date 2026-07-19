@@ -22,7 +22,7 @@ export interface MeshBuildingSpec {
   floors: number;
   shapeId?: ShapeId;
   components: BuildComponents;
-  /** Total key count; drives facade bay rhythm (rooms per storey). */
+  /** Total key count; drives facade bay rhythm and floor-plate scale. */
   rooms?: number;
 }
 
@@ -272,25 +272,12 @@ export function buildModularBuilding(
   const roomsPerStorey =
     spec.rooms && spec.floors > 0 ? spec.rooms / spec.floors : null;
 
-  // Structure occupies only the parcel share the room program needs
-  // (about 60 m2 gross per key); the ghost stays the full allowed envelope.
-  const ground = rings.find((r) => r.fromLevel === 0) ?? rings[0];
-  let parcelArea = 0;
-  if (ground) {
-    const gp = ground.points;
-    for (let i = 0; i < gp.length; i++) {
-      const [x1, z1] = [gp[i].x, gp[i].z];
-      const j = (i + 1) % gp.length;
-      const [x2, z2] = [gp[j].x, gp[j].z];
-      parcelArea += x1 * z2 - x2 * z1;
-    }
-    parcelArea = Math.abs(parcelArea) / 2;
-  }
-  const neededArea =
-    roomsPerStorey && roomsPerStorey > 0 ? roomsPerStorey * 60 : null;
+  // Floor plate vs room density: sparse programs open toward the ghost
+  // envelope (larger suites); denser programs pull the plate in. Ghost stays
+  // the full allowed envelope either way.
   const fit =
-    neededArea && parcelArea > 50
-      ? Math.min(0.98, Math.max(0.06, Math.sqrt(neededArea / parcelArea)))
+    roomsPerStorey && roomsPerStorey > 0
+      ? Math.min(0.98, Math.max(0.1, 2.2 / (roomsPerStorey + 0.5)))
       : 1;
 
   for (const ring of rings) {
