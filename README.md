@@ -6,11 +6,11 @@ Place a hotel, homestay, or B&B on a real Toronto map, toggle concrete vs mass t
 
 Built at Hack the 6ix 2026.
 
-**Live:** [app](https://innsight-kappa.vercel.app) (API on Render free tier cold-starts ~50 s on first request) · [venture page + waitlist](https://inn-sight.base44.app)
+**Live:** [app](https://hack-the-6ix-tawny.vercel.app) (API on Render free tier cold-starts ~50 s on first request) · [venture page + waitlist](https://inn-sight.base44.app)
 
 ## Stack
 
-- `web/` Next.js (App Router, TypeScript, Tailwind), MapLibre GL satellite assembler
+- `web/` Next.js (App Router, TypeScript, Tailwind), MapLibre GL satellite assembler with a Three.js modular massing layer
 - `api/` FastAPI (Python 3.11+)
 - `model/` benchmark library and deterministic stress-test engine, pytest-covered
 
@@ -73,6 +73,8 @@ Honesty first: this table says exactly what is real and what is a labelled simul
 | Plan-shape modifiers | Labelled estimates (`slab` / `l_wing` / `courtyard` / `podium_tower` facade, circulation, embodied factors); GFA still `rooms × SQFT_PER_ROOM`; room-per-storey distribution is derived, not surveyed |
 | Grid strain class | Published factors as a proxy, not utility telemetry |
 | Pixel viewport | Visualization driven by real sim outputs, decorative art style |
+| In-app chatbot | Gemini-backed reasoning over the app's own computed context; deterministic fallback without a key, generator labelled |
+| 3D massing | Modular Three.js massing driven by rooms x storeys x plan shape; illustrative, not permit-ready |
 
 ## Licences and data credits
 
