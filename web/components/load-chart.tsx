@@ -19,25 +19,25 @@ interface LoadChartProps {
 
 export function LoadChart({ series, colour, title, height = 190 }: LoadChartProps) {
   return (
-    <div className="rounded border border-[#1a3a57] bg-chart-navy p-2.5">
+    <div className="rounded border border-[#2a4438] bg-chart-navy p-2.5">
       <p className="mb-1 text-center text-[11px] font-semibold text-white/90">
         {title}
       </p>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={series} margin={{ top: 4, right: 8, bottom: 0, left: -14 }}>
-          <CartesianGrid stroke="#1a3a57" strokeWidth={0.6} />
+          <CartesianGrid stroke="#2a4438" strokeWidth={0.6} />
           <XAxis
             dataKey="hour"
-            tick={{ fill: "#c9d6e2", fontSize: 9 }}
+            tick={{ fill: "#c5d4cb", fontSize: 9 }}
             tickFormatter={(h: number) => formatHour(h)}
             ticks={[0, 6, 12, 18, 24, 30, 36, 42]}
-            stroke="#2c4a66"
+            stroke="#2a4438"
           />
-          <YAxis tick={{ fill: "#c9d6e2", fontSize: 9 }} stroke="#2c4a66" />
+          <YAxis tick={{ fill: "#c5d4cb", fontSize: 9 }} stroke="#2a4438" />
           <Tooltip
             contentStyle={{
-              background: "#092036",
-              border: "1px solid #2c4a66",
+              background: "#0f1f18",
+              border: "1px solid #2a4438",
               fontSize: 11,
               color: "#fff",
             }}

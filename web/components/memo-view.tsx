@@ -60,7 +60,7 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
   const portfolio = memo.portfolio_table || [];
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-20 overflow-y-auto bg-[#0b1420]/70 p-5 backdrop-blur-sm print:overflow-visible print:bg-white print:p-0">
+    <div className="pointer-events-auto absolute inset-0 z-20 overflow-y-auto bg-[#0c1812]/70 p-5 backdrop-blur-sm print:overflow-visible print:bg-white print:p-0">
       <div
         id="memo-card"
         className="memo-print mx-auto max-w-4xl rounded-lg bg-white p-6 shadow-2xl print:max-w-none print:rounded-none print:p-0 print:shadow-none"
@@ -376,8 +376,11 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
 
         <footer className="memo-footer hidden print:block">
           <p>
-            INN-SIGHT · 45 The Esplanade, Toronto · Green AI stress appendix
-            included when year pack · Generated for investor review
+            INN-SIGHT ·{" "}
+            {memo.environmental_summary?.site?.name ??
+              memo.title.replace(/^.*?:\s*/, "")}{" "}
+            · Green AI stress appendix included when year pack · Generated for
+            investor review
           </p>
         </footer>
       </div>
@@ -624,7 +627,7 @@ function MemoRow({
   recommended: boolean;
 }) {
   return (
-    <tr className={recommended ? "bg-[#f5c518]/10" : undefined}>
+    <tr className={recommended ? "bg-accent/10" : undefined}>
       <td className="border border-panel-border px-2.5 py-2 font-semibold">
         {option.label}
         {recommended && (

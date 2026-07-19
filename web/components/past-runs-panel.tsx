@@ -66,7 +66,7 @@ export function PastRunsPanel({
   }
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-20 overflow-y-auto bg-[#0b1420]/85 p-5 backdrop-blur-sm">
+    <div className="pointer-events-auto absolute inset-0 z-20 overflow-y-auto bg-[#0c1812]/85 p-5 backdrop-blur-sm">
       <div className="mx-auto max-w-2xl rounded-lg bg-panel p-5 shadow-2xl">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>

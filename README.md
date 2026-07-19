@@ -67,7 +67,7 @@ Honesty first: this table says exactly what is real and what is a labelled simul
 | Per-user past runs | Mongo `memo_runs` metadata + reopenable `report` blob (year memo, multi-agent briefs, scenario matrix) when Auth0 signed in; click Past runs to restore; no Stay22 listings; JWT verification still a follow-up |
 | Fingerprint run cache | Exact `fingerprint` on site (lat/lng to 4 dp) + building A/B + storeys/shape + kind; `/briefing` and `/briefing/year` reuse prior report (skip Gemini) when matched; `force_refresh` bypasses; labelled `from_cache` in API + physics log |
 | Memo narrative | Gemini structured output over real computed numbers (single-scenario or year portfolio); deterministic fallback without a key, generator labelled in-UI |
-| Streetscape renders | Illustrative AI imagery, labelled, static fallback disclosed |
+| Streetscape renders | Illustrative AI imagery via Nano Banana; live prompts include storeys, plan shape, structure, facade, HVAC, and site name; static A/B fallbacks disclosed when unmatched |
 | Community friction score | Documented heuristic (`model/friction.md`), not survey data |
 | Building geometry | Illustrative massing (rooms × storeys × shape); MapLibre rings + Pixi levels track storeys/shape; not permit-ready drawings |
 | Plan-shape modifiers | Labelled estimates (`slab` / `l_wing` / `courtyard` / `podium_tower` facade, circulation, embodied factors); GFA still `rooms × SQFT_PER_ROOM`; room-per-storey distribution is derived, not surveyed |

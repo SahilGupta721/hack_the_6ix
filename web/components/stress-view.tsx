@@ -38,6 +38,9 @@ interface StressViewProps {
   climate?: ClimateMeta | null;
   storeys?: number;
   shapeId?: string;
+  siteName?: string;
+  facadeA?: string;
+  facadeB?: string;
 }
 
 export function StressView({
@@ -59,6 +62,9 @@ export function StressView({
   climate,
   storeys,
   shapeId,
+  siteName,
+  facadeA,
+  facadeB,
 }: StressViewProps) {
   const yearMode = Boolean(matrixSummary && scenarios);
   const focusKey = focusScenario ?? "heatwave_full";
@@ -71,7 +77,7 @@ export function StressView({
       : "Toronto benchmark curves";
 
   return (
-    <div className="pointer-events-auto h-full overflow-y-auto bg-[#0b1420]/92 p-4 backdrop-blur-sm">
+    <div className="pointer-events-auto h-full overflow-y-auto bg-[#0c1812]/92 p-4 backdrop-blur-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-[15px] font-semibold text-white">
@@ -139,6 +145,7 @@ export function StressView({
       )}
       <div className="grid grid-cols-1 gap-4 pb-16 md:grid-cols-2">
         <OptionColumn
+          option="A"
           result={focusComparison.option_a}
           colour="#e5484d"
           active={active === "A"}
@@ -146,15 +153,20 @@ export function StressView({
           onSelect={() => onSelect("A")}
           storeys={storeys}
           shapeId={shapeId}
+          siteName={siteName}
+          facade={facadeA}
         />
         <OptionColumn
+          option="B"
           result={focusComparison.option_b}
-          colour="#f5c518"
+          colour="#c4a35a"
           active={active === "B"}
           recommended={focusComparison.recommended === "B"}
           onSelect={() => onSelect("B")}
           storeys={storeys}
           shapeId={shapeId}
+          siteName={siteName}
+          facade={facadeB}
         />
       </div>
     </div>
@@ -240,6 +252,7 @@ function MatrixStrip({
 }
 
 function OptionColumn({
+  option,
   result,
   colour,
   active,
@@ -247,7 +260,10 @@ function OptionColumn({
   onSelect,
   storeys,
   shapeId,
+  siteName,
+  facade,
 }: {
+  option: OptionKey;
   result: OptionResult;
   colour: string;
   active: boolean;
@@ -255,7 +271,10 @@ function OptionColumn({
   onSelect: () => void;
   storeys?: number;
   shapeId?: string;
+  siteName?: string;
+  facade?: string;
 }) {
+  const place = siteName?.split(",")[0]?.trim() || siteName || "Toronto site";
   return (
     <button
       onClick={onSelect}
@@ -272,8 +291,9 @@ function OptionColumn({
         )}
       </p>
       <p className="text-[11px] text-white/60">
-        Toronto {result.config.rooms}-room {result.config.building_type} at 45
-        The Esplanade
+        {result.config.rooms}-room {result.config.building_type}
+        {storeys != null ? ` · ${storeys} storeys` : ""}
+        {shapeId ? ` · ${shapeId.replace("_", " ")}` : ""} at {place}
       </p>
       <StrainGauge
         ratio={result.strain_ratio}
@@ -301,7 +321,19 @@ function OptionColumn({
         />
       </div>
       {FLAGS.renders && (
-        <RenderPanel option={result.config.label.includes("Option A") ? "A" : "B"} />
+        <RenderPanel
+          option={option}
+          spec={{
+            storeys,
+            shape: shapeId,
+            structure: result.config.structure,
+            hvac: result.config.hvac,
+            facade,
+            siteName: place,
+            buildingType: result.config.building_type,
+            rooms: result.config.rooms,
+          }}
+        />
       )}
       <div className="grid w-full grid-cols-3 gap-1.5 text-center">
         <Stat

@@ -233,13 +233,13 @@ export function SiteMap({
         id: "site-fill",
         type: "fill",
         source: "site",
-        paint: { "fill-color": "#f5c518", "fill-opacity": 0.18 },
+        paint: { "fill-color": "#c4a35a", "fill-opacity": 0.2 },
       });
       map.addLayer({
         id: "site-outline",
         type: "line",
         source: "site",
-        paint: { "line-color": "#f5c518", "line-width": 2.5 },
+        paint: { "line-color": "#c4a35a", "line-width": 2.5 },
       });
       // Re-add ring layers above site fill so massing stays on top of the pad.
       for (let i = 0; i < BUILDING_RING_COUNT; i++) {

@@ -176,7 +176,7 @@ export function DesignPanel({
                     title={t.blurb}
                     className={`flex flex-col items-center gap-1 rounded-md border px-1 py-2 transition-colors ${
                       uiType === t.key
-                        ? "border-[#5B9BD5] bg-[#EAF4FB]"
+                        ? "border-mint bg-[#e8f5ef]"
                         : "border-panel-border hover:bg-panel-muted"
                     }`}
                   >
@@ -201,7 +201,7 @@ export function DesignPanel({
                   max={uiType === "hotel" ? 80 : 16}
                   value={rooms}
                   onChange={(e) => onRoomsChange(Number(e.target.value))}
-                  className="mt-0.5 w-full accent-[#5B9BD5]"
+                  className="mt-0.5 w-full accent-mint"
                 />
               </div>
               <div className="mt-2">
@@ -222,7 +222,7 @@ export function DesignPanel({
                   max={storeyBounds.max}
                   value={storeys}
                   onChange={(e) => onStoreysChange(Number(e.target.value))}
-                  className="mt-0.5 w-full accent-[#5B9BD5]"
+                  className="mt-0.5 w-full accent-mint"
                 />
               </div>
               <div className="mt-2.5">
@@ -242,7 +242,7 @@ export function DesignPanel({
                         onClick={() => onShapeChange(id)}
                         className={`rounded-md border px-1.5 py-1.5 text-left transition-colors ${
                           active
-                            ? "border-[#5B9BD5] bg-[#EAF4FB]"
+                            ? "border-mint bg-[#e8f5ef]"
                             : "border-panel-border hover:bg-panel-muted"
                         }`}
                       >
@@ -335,7 +335,7 @@ export function DesignPanel({
                               }
                               className={`flex flex-col items-center gap-1 rounded-md border px-1 py-1.5 ${
                                 components[section.field] === value
-                                  ? "border-[#5B9BD5] bg-[#EAF4FB]"
+                                  ? "border-mint bg-[#e8f5ef]"
                                   : "border-panel-border hover:bg-panel-muted"
                               }`}
                             >
@@ -404,7 +404,7 @@ function SiteClimateCard({
 
   const c = brief.climate;
   return (
-    <div className="rounded-md border border-panel-border bg-[#f7fafc] px-3 py-2.5">
+    <div className="rounded-md border border-panel-border bg-panel-muted px-3 py-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-text-soft">
@@ -474,7 +474,7 @@ function PresetButton({
       onClick={onClick}
       className={`rounded-md border px-2 py-1.5 text-left transition-colors ${
         active
-          ? "border-[#5B9BD5] bg-[#EAF4FB]"
+          ? "border-mint bg-[#e8f5ef]"
           : "border-panel-border hover:bg-panel-muted"
       }`}
     >
@@ -497,7 +497,7 @@ function Chevron({ open, small }: { open: boolean; small?: boolean }) {
       <path
         d="M3 6l5 5 5-5"
         fill="none"
-        stroke="#5a6472"
+        stroke="#5a665e"
         strokeWidth="1.8"
         strokeLinecap="round"
       />

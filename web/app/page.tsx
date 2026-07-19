@@ -360,6 +360,7 @@ export default function HomePage() {
       setSelectedCandidateId(site.id);
       setActiveSite((prev) => ({
         ...prev,
+        name: site.label,
         lng: site.center.lng,
         lat: site.center.lat,
         polygon: site.polygon,
@@ -367,6 +368,20 @@ export default function HomePage() {
       setPlaced(false);
       invalidate();
       appendLog(`Selected ${site.label} — open land (not a building/road).`);
+
+      // Climate follows the selected parcel pin (not the original search center).
+      setAreaLoading(true);
+      void fetchAreaBrief(site.center.lat, site.center.lng)
+        .then((brief) => {
+          setAreaBrief((prev) => ({
+            ...brief,
+            land: prev?.land,
+          }));
+          setAreaLoading(false);
+        })
+        .catch(() => {
+          setAreaLoading(false);
+        });
     },
     [appendLog, invalidate],
   );
@@ -681,6 +696,9 @@ export default function HomePage() {
                 climate={climateMeta}
                 storeys={storeys}
                 shapeId={shapeId}
+                siteName={activeSite.name}
+                facadeA={componentsByOption.A.facade}
+                facadeB={componentsByOption.B.facade}
                 onFocusScenario={(key) =>
                   setScenario(key as StressScenarioKey)
                 }

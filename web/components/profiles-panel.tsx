@@ -36,7 +36,7 @@ export function ProfilesPanel({ buildingType, onClose }: ProfilesPanelProps) {
   const profile = profiles?.[selected];
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col bg-[#0b1420]/60 backdrop-blur-[2px]">
+    <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col bg-[#0c1812]/60 backdrop-blur-[2px]">
       <div className="flex items-start justify-between border-b border-panel-border bg-panel px-5 py-3">
         <div>
           <h2 className="text-[19px] font-semibold text-text-strong">
@@ -79,13 +79,13 @@ export function ProfilesPanel({ buildingType, onClose }: ProfilesPanelProps) {
                 height={230}
               />
             ) : (
-              <div className="grid place-items-center rounded border border-[#1a3a57] bg-chart-navy text-[12px] text-white/60">
+              <div className="grid place-items-center rounded border border-[#2a4438] bg-chart-navy text-[12px] text-white/60">
                 {error ?? "Loading profile..."}
               </div>
             )}
           </div>
 
-          <div className="rounded border border-[#1a3a57] bg-chart-navy p-3">
+          <div className="rounded border border-[#2a4438] bg-chart-navy p-3">
             <p className="mb-2 text-[12px] font-semibold text-white/90">
               Validation: our generated curve vs a published metered hotel
             </p>
@@ -110,7 +110,7 @@ export function ProfilesPanel({ buildingType, onClose }: ProfilesPanelProps) {
         <aside className="w-64 shrink-0 border-l border-panel-border bg-panel p-4">
           <h3 className="text-[14px] font-semibold">Energy Load Profiles</h3>
           <p className="mt-2 text-[11px] text-text-soft">Selected profile:</p>
-          <div className="mt-1.5 space-y-1.5 rounded-md border-2 border-[#2E86AB] p-2.5">
+          <div className="mt-1.5 space-y-1.5 rounded-md border-2 border-mint/50 p-2.5">
             {profiles &&
               (Object.keys(profiles) as BuildingType[]).map((key) => (
                 <label
@@ -122,7 +122,7 @@ export function ProfilesPanel({ buildingType, onClose }: ProfilesPanelProps) {
                     name="profile"
                     checked={selected === key}
                     onChange={() => setSelected(key)}
-                    className="accent-[#5B9BD5]"
+                    className="accent-mint"
                   />
                   {profiles[key].label}
                 </label>

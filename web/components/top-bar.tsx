@@ -80,7 +80,7 @@ function HexLogo() {
       <path
         d="M12 2 20.66 7v10L12 22 3.34 17V7L12 2Z"
         fill="none"
-        stroke="#f5c518"
+        stroke="#c4a35a"
         strokeWidth="1.6"
       />
       <path

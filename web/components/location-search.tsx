@@ -153,7 +153,7 @@ export function LocationSearch({
 }
 
 function SearchIcon({ light }: { light: boolean }) {
-  const stroke = light ? "#5a6472" : "rgba(255,255,255,0.55)";
+  const stroke = light ? "#5a665e" : "rgba(255,255,255,0.55)";
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
       <circle

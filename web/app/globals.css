@@ -1,21 +1,22 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #1f2c35;
-  --color-ink-raised: #2a3945;
-  --color-ink-border: #354552;
+  /* Quiet-luxury ESG: bottle-green chrome, brass accent, stone panels */
+  --color-ink: #14241c;
+  --color-ink-raised: #1e3328;
+  --color-ink-border: #2a4438;
   --color-panel: #ffffff;
-  --color-panel-border: #e2e6ec;
-  --color-panel-muted: #f4f6f9;
-  --color-chart-navy: #123346;
-  --color-chart-navy-deep: #092036;
-  --color-accent: #f5c518;
+  --color-panel-border: #dde3dd;
+  --color-panel-muted: #f3f5f2;
+  --color-chart-navy: #1a3328;
+  --color-chart-navy-deep: #0f1f18;
+  --color-accent: #c4a35a;
   --color-alert: #e5484d;
   --color-amber: #f5a623;
   --color-timber: #d97e3f;
   --color-mint: #35c28f;
-  --color-text-strong: #10151c;
-  --color-text-soft: #5a6472;
+  --color-text-strong: #0e1612;
+  --color-text-soft: #5a665e;
   --font-display: "Fraunces", ui-serif, Georgia, serif;
   --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
 }
@@ -36,11 +37,11 @@ body {
   background:
     linear-gradient(
       105deg,
-      rgb(15 22 28 / 0.92) 0%,
-      rgb(15 22 28 / 0.72) 42%,
-      rgb(15 22 28 / 0.35) 100%
+      rgb(12 24 18 / 0.92) 0%,
+      rgb(12 24 18 / 0.72) 42%,
+      rgb(12 24 18 / 0.35) 100%
     ),
-    linear-gradient(to top, rgb(15 22 28 / 0.85) 0%, transparent 45%);
+    linear-gradient(to top, rgb(12 24 18 / 0.85) 0%, transparent 45%);
 }
 
 .landing-hero {
@@ -93,7 +94,7 @@ body {
   html,
   body {
     background: #fff !important;
-    color: #10151c !important;
+    color: #0e1612 !important;
     height: auto !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact;
@@ -119,14 +120,14 @@ body {
     border-radius: 0;
     box-shadow: none;
     padding: 0;
-    color: #10151c;
+    color: #0e1612;
     font-family: var(--font-sans);
   }
 
   .memo-letterhead {
     margin-bottom: 14pt;
     padding-bottom: 10pt;
-    border-bottom: 2.5pt solid #123346;
+    border-bottom: 2.5pt solid #1a3328;
   }
 
   .memo-letterhead-row {
@@ -141,14 +142,14 @@ body {
     font-size: 11pt;
     font-weight: 700;
     letter-spacing: 0.14em;
-    color: #123346;
+    color: #1a3328;
   }
 
   .memo-meta {
     font-size: 8pt;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: #5a6472;
+    color: #5a665e;
   }
 
   .memo-title {
@@ -156,7 +157,7 @@ body {
     font-size: 16pt;
     font-weight: 600;
     line-height: 1.2;
-    color: #10151c;
+    color: #0e1612;
     margin: 0;
   }
 
@@ -164,7 +165,7 @@ body {
     margin-top: 4pt;
     font-size: 9pt;
     line-height: 1.45;
-    color: #5a6472;
+    color: #5a665e;
   }
 
   .memo-compare {
@@ -186,14 +187,14 @@ body {
   }
 
   .memo-compare-table thead th {
-    background: #f4f6f9;
+    background: #f3f5f2;
     font-weight: 600;
   }
 
   .memo-compare-table th.metric,
   .memo-compare-table td.metric {
     width: 22%;
-    color: #5a6472;
+    color: #5a665e;
     font-size: 8pt;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -202,14 +203,14 @@ body {
 
   .memo-compare-table th.pick,
   .memo-compare-table td.pick {
-    background: #fff8e1;
+    background: #f5f0e4;
   }
 
   .memo-compare-table .opt-label {
     display: block;
     font-size: 10pt;
     font-weight: 700;
-    color: #10151c;
+    color: #0e1612;
   }
 
   .memo-compare-table .rec-pill {
@@ -232,7 +233,7 @@ body {
     margin-top: 2pt;
     font-size: 7.5pt;
     font-weight: 400;
-    color: #5a6472;
+    color: #5a665e;
     line-height: 1.35;
   }
 
@@ -242,9 +243,9 @@ body {
   }
 
   .memo-rec {
-    border-left: 3.5pt solid #f5c518 !important;
-    background: #f8fafc !important;
-    border-color: #e2e6ec !important;
+    border-left: 3.5pt solid #c4a35a !important;
+    background: #f7f9f6 !important;
+    border-color: #dde3dd !important;
   }
 
   .memo-sources {
@@ -258,7 +259,7 @@ body {
     font-size: 7.5pt;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #5a6472;
+    color: #5a665e;
   }
 
   .memo-env {
