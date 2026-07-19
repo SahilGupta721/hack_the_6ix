@@ -61,6 +61,24 @@ body {
   transform: translateY(-1px);
 }
 
+.landing-layer {
+  will-change: transform, opacity;
+}
+
+.landing-layer--exit {
+  animation: landing-exit 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+.app-enter-shell {
+  opacity: 0;
+  transform: translateY(28px);
+}
+
+.app-enter-shell--in {
+  animation: app-shell-enter 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @keyframes landing-drift {
   from {
     transform: scale(1.04) translate3d(0, 0, 0);
@@ -81,6 +99,47 @@ body {
   }
 }
 
+@keyframes landing-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8%) scale(1.02);
+  }
+}
+
+@keyframes app-shell-enter {
+  from {
+    opacity: 0;
+    transform: translateY(36px) scale(0.988);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero,
+  .landing-copy,
+  .landing-layer--exit,
+  .app-enter-shell--in {
+    animation: none !important;
+  }
+
+  .landing-layer--exit {
+    opacity: 0;
+  }
+
+  .app-enter-shell,
+  .app-enter-shell--in {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .maplibregl-ctrl-attrib {
   font-size: 10px;
 }
@@ -88,77 +147,102 @@ body {
 @media print {
   @page {
     size: letter portrait;
-    margin: 14mm 14mm 16mm;
+    margin: 12mm 14mm 14mm;
   }
 
   html,
   body {
     background: #fff !important;
     color: #0e1612 !important;
+    width: 100% !important;
     height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  body * {
-    visibility: hidden;
+  .app-enter-shell,
+  .app-enter-shell--in,
+  .landing-layer,
+  .landing-layer--exit {
+    animation: none !important;
+    transform: none !important;
+    filter: none !important;
   }
 
-  #memo-card,
-  #memo-card * {
-    visibility: visible;
+  /* Memo is moved onto <body> before print — hide everything else. */
+  body.printing-memo > *:not(#memo-card) {
+    display: none !important;
   }
 
+  /* Normal document flow so long memos paginate cleanly (no page-2 pileup). */
   #memo-card {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    max-width: none;
-    border-radius: 0;
-    box-shadow: none;
-    padding: 0;
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
     color: #0e1612;
     font-family: var(--font-sans);
+    transform: none !important;
   }
 
   .memo-letterhead {
-    margin-bottom: 14pt;
-    padding-bottom: 10pt;
-    border-bottom: 2.5pt solid #1a3328;
+    margin-bottom: 12pt;
+    padding-bottom: 8pt;
+    border-bottom: 2pt solid #1a3328;
   }
 
   .memo-letterhead-row {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
+    gap: 12pt;
     margin-bottom: 6pt;
   }
 
   .memo-brand {
+    flex-shrink: 0;
+    white-space: nowrap;
     font-family: var(--font-display);
-    font-size: 11pt;
+    font-size: 12pt;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     color: #1a3328;
   }
 
   .memo-meta {
-    font-size: 8pt;
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+    font-size: 7.5pt;
+    line-height: 1.35;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
     color: #5a665e;
   }
 
   .memo-title {
     font-family: var(--font-display);
-    font-size: 16pt;
+    font-size: 15pt;
     font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.25;
     color: #0e1612;
     margin: 0;
+    max-width: none;
+    hyphens: none;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .memo-deck {

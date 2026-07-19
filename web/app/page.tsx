@@ -90,6 +90,8 @@ type Overlay = "none" | "stress" | "memo" | "profiles" | "runs";
 export default function HomePage() {
   const auth = useAuth();
   const [entered, setEntered] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
+  const [landingLeaving, setLandingLeaving] = useState(false);
   const [signIn, setSignIn] = useState<{ open: boolean; reason: SignInReason }>(
     { open: false, reason: "start" },
   );
@@ -143,15 +145,29 @@ export default function HomePage() {
 
   const enterApp = useCallback(() => {
     sessionStorage.setItem(ENTERED_KEY, "1");
-    setEntered(true);
     setSignIn((s) => ({ ...s, open: false }));
+    setEntered(true);
   }, []);
+
+  // Landing slides away once the assembler is mounted underneath.
+  useEffect(() => {
+    if (!entered || !showLanding) return;
+    const frame = requestAnimationFrame(() => setLandingLeaving(true));
+    const done = window.setTimeout(() => {
+      setShowLanding(false);
+      setLandingLeaving(false);
+    }, 720);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(done);
+    };
+  }, [entered, showLanding]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const wantsEnter = params.get("enter") === "1";
-    const wasEntered = sessionStorage.getItem(ENTERED_KEY) === "1";
 
+    // Post-Auth0 return from Get Started → drop into the assembler.
     if (wantsEnter) {
       if (FLAGS.auth0 && auth.loading) return;
       window.history.replaceState({}, "", "/");
@@ -163,27 +179,26 @@ export default function HomePage() {
       return;
     }
 
-    // After logout (or expired session), always show landing — never restore the assembler.
+    // Always show the landing until Get Started — even when already signed in.
     if (FLAGS.auth0) {
       if (auth.loading) return;
       if (!auth.loggedIn) {
         sessionStorage.removeItem(ENTERED_KEY);
         setEntered(false);
-        return;
+        setShowLanding(true);
+        setLandingLeaving(false);
       }
     }
-
-    if (wasEntered) setEntered(true);
   }, [auth.loading, auth.loggedIn, enterApp]);
 
   const handleGetStarted = useCallback(() => {
-    // Don't wait forever on a hung /auth/profile — open sign-in right away.
+    if (FLAGS.auth0 && auth.loading) return;
     if (FLAGS.auth0 && !auth.loggedIn) {
       setSignIn({ open: true, reason: "start" });
       return;
     }
     enterApp();
-  }, [auth.loggedIn, enterApp]);
+  }, [auth.loading, auth.loggedIn, enterApp]);
 
   const appendLog = useCallback((line: string) => {
     setLog((prev) => [...prev.slice(-9), line]);
@@ -652,21 +667,14 @@ export default function HomePage() {
       ]
     : [];
 
-  if (!entered) {
-    return (
-      <>
-        <Landing onGetStarted={handleGetStarted} />
-        <SignInPrompt
-          open={signIn.open}
-          reason={signIn.reason}
-          onClose={() => setSignIn((s) => ({ ...s, open: false }))}
-        />
-      </>
-    );
-  }
-
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative h-full overflow-hidden">
+      {entered && (
+        <div
+          className={`app-enter-shell flex h-full flex-col ${
+            landingLeaving || !showLanding ? "app-enter-shell--in" : ""
+          }`}
+        >
       <TopBar siteName={activeSite.name} onSearchPlace={handleSearchPlace} />
       {FLAGS.voice && (
         <VoiceController
@@ -833,6 +841,21 @@ export default function HomePage() {
           </aside>
         )}
       </div>
+        </div>
+      )}
+
+      {showLanding && (
+        <div
+          className={`landing-layer absolute inset-0 z-40 ${
+            landingLeaving ? "landing-layer--exit" : ""
+          }`}
+        >
+          <Landing
+            onGetStarted={handleGetStarted}
+            busy={FLAGS.auth0 && auth.loading}
+          />
+        </div>
+      )}
 
       <SignInPrompt
         open={signIn.open}

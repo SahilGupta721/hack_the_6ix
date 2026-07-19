@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { MemoDualLoadChart } from "@/components/memo-dual-load-chart";
 import { STRESS_SCENARIOS, scenarioLabel } from "@/lib/scenarios";
 import { useAuth } from "@/lib/use-auth";
@@ -36,6 +37,43 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
   const needsMfa = auth.enabled && auth.loggedIn && !auth.mfaVerified;
   const isYearPack = memo.kind === "year_pack";
 
+  // Move the memo onto <body> for print so it can paginate in normal flow.
+  // (position:fixed inside the map overlay collapses / overlaps on page 2+.)
+  useEffect(() => {
+    const card = document.getElementById("memo-card");
+    if (!card) return;
+
+    let homeParent: Node | null = null;
+    let homeNext: ChildNode | null = null;
+
+    const onBeforePrint = () => {
+      homeParent = card.parentNode;
+      homeNext = card.nextSibling;
+      document.body.appendChild(card);
+      document.body.classList.add("printing-memo");
+    };
+
+    const onAfterPrint = () => {
+      document.body.classList.remove("printing-memo");
+      if (homeParent) {
+        homeParent.insertBefore(card, homeNext);
+      }
+      homeParent = null;
+      homeNext = null;
+    };
+
+    window.addEventListener("beforeprint", onBeforePrint);
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", onBeforePrint);
+      window.removeEventListener("afterprint", onAfterPrint);
+      document.body.classList.remove("printing-memo");
+      if (homeParent && card.parentNode === document.body) {
+        homeParent.insertBefore(card, homeNext);
+      }
+    };
+  }, []);
+
   const exportLabel = needsLogin
     ? "Sign in to export"
     : needsMfa
@@ -60,10 +98,10 @@ export function MemoView({ memo, onClose, onNeedSignIn }: MemoViewProps) {
   const portfolio = memo.portfolio_table || [];
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-20 overflow-y-auto bg-[#0c1812]/70 p-5 backdrop-blur-sm print:overflow-visible print:bg-white print:p-0">
+    <div className="pointer-events-auto absolute inset-0 z-20 overflow-y-auto bg-[#0c1812]/70 p-5 backdrop-blur-sm print:static print:inset-auto print:overflow-visible print:bg-white print:p-0 print:backdrop-blur-none">
       <div
         id="memo-card"
-        className="memo-print mx-auto max-w-4xl rounded-lg bg-white p-6 shadow-2xl print:max-w-none print:rounded-none print:p-0 print:shadow-none"
+        className="memo-print mx-auto w-full max-w-4xl rounded-lg bg-white p-6 shadow-2xl print:mx-0 print:max-w-none print:rounded-none print:p-0 print:shadow-none"
       >
         <div className="flex items-start justify-between print:hidden">
           <div />
