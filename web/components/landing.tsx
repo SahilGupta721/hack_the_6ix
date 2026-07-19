@@ -46,15 +46,15 @@ export function Landing({ onGetStarted, busy = false }: LandingProps) {
         </div>
       )}
 
-      <div className="relative z-10 flex h-full flex-col justify-end px-6 pb-16 pt-10 sm:px-12 sm:pb-20 md:px-16">
-        <div className="landing-copy max-w-xl">
-          <div className="flex items-center gap-3">
+      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 py-10 text-center">
+        <div className="landing-copy flex max-w-2xl flex-col items-center">
+          <div className="flex items-center justify-center gap-4">
             <HexLogo />
-            <p className="font-display text-[clamp(2.4rem,7vw,4.25rem)] font-semibold leading-none tracking-tight text-white">
+            <p className="font-display text-[clamp(3.25rem,9vw,6rem)] font-semibold leading-none tracking-tight text-white">
               INN-SIGHT
             </p>
           </div>
-          <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/80 sm:text-[16px]">
+          <p className="mt-7 max-w-xl text-[18px] leading-relaxed text-white/85 sm:text-[23px]">
             Know what to build before you build it: stress-test hotel and
             homestay options on a real Toronto site.
           </p>
@@ -62,7 +62,7 @@ export function Landing({ onGetStarted, busy = false }: LandingProps) {
             type="button"
             onClick={onGetStarted}
             disabled={busy}
-            className="landing-cta mt-8 inline-flex items-center gap-2 rounded bg-accent px-6 py-3 text-[14px] font-semibold text-ink hover:brightness-105 disabled:opacity-60"
+            className="landing-cta mt-10 inline-flex items-center gap-2 rounded-lg bg-accent px-14 py-6 text-[22px] font-semibold text-ink hover:brightness-105 disabled:opacity-60"
           >
             {busy ? "Checking session…" : "Get Started"}
           </button>
