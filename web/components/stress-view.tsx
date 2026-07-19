@@ -1,6 +1,10 @@
 "use client";
 
 import { AgentBriefingPanel } from "@/components/agent-briefing-panel";
+import {
+  checksFromBrief,
+  CompliancePanel,
+} from "@/components/compliance-panel";
 import { LoadChart } from "@/components/load-chart";
 import { MarketPulse } from "@/components/market-pulse";
 import { PixelViewport } from "@/components/pixel-viewport";
@@ -76,6 +80,10 @@ export function StressView({
       ? `Open-Meteo archive ${climate.archive_year ?? ""}`.trim()
       : "Toronto benchmark curves";
 
+  const compliance = briefs?.compliance
+    ? checksFromBrief(briefs.compliance.metrics)
+    : null;
+
   return (
     <div className="pointer-events-auto h-full overflow-y-auto bg-[#0c1812]/92 p-4 backdrop-blur-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -129,13 +137,32 @@ export function StressView({
           <MarketPulse lat={siteLat} lng={siteLng} />
         </div>
       )}
-      {FLAGS.agents && briefs && synthesis && briefingGenerator && (
+      {briefs && synthesis && briefingGenerator && (
         <AgentBriefingPanel
           briefs={briefs}
           synthesis={synthesis}
           generator={briefingGenerator}
           fallbackReason={briefingFallbackReason}
         />
+      )}
+      {compliance && (
+        compliance.checks.length > 0 ? (
+          <div className="mb-3">
+            <CompliancePanel
+              checks={compliance.checks}
+              tallies={compliance.tallies}
+              jurisdiction={compliance.jurisdiction}
+              zoningDistrict={compliance.zoningDistrict}
+              disclaimer={compliance.disclaimer}
+            />
+          </div>
+        ) : briefs?.compliance ? (
+          <p className="mb-2.5 rounded border border-amber/40 bg-amber/10 px-3 py-2 text-[11px] text-amber/90">
+            Rules &amp; compliance table missing from this run (likely an old
+            cache). Close this panel and Run year stress again — the app will
+            force-refresh agents automatically.
+          </p>
+        ) : null
       )}
       {yearMode && (
         <p className="mb-2 text-[11px] text-white/55">

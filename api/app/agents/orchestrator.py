@@ -243,6 +243,7 @@ async def run_briefing(
     lng: float | None = None,
     storeys: int | None = None,
     shape: str | None = "slab",
+    acres: float | None = None,
 ) -> BriefingResponse:
     site_lat = DEFAULT_SITE_LAT if lat is None else lat
     site_lng = DEFAULT_SITE_LNG if lng is None else lng
@@ -258,7 +259,11 @@ async def run_briefing(
         config_a, config_b, pack[scenario], shape=shape, storeys=storeys
     )
     ctx = await gather_all(
-        comparison, lat=site_lat, lng=site_lng, climate=climate_meta
+        comparison,
+        lat=site_lat,
+        lng=site_lng,
+        climate=climate_meta,
+        acres=acres,
     )
     from innsight_model.shapes import distribute_rooms, modifiers_for, normalize_shape
 
@@ -321,6 +326,7 @@ async def run_year_briefing(
     lng: float | None = None,
     storeys: int | None = None,
     shape: str | None = "slab",
+    acres: float | None = None,
 ) -> YearBriefingResponse:
     """Run all year scenarios in parallel; one gather; ~8 Gemini calls total."""
     site_lat = DEFAULT_SITE_LAT if lat is None else lat
@@ -342,7 +348,11 @@ async def run_year_briefing(
         matrix_summary["climate"] = climate_meta
 
     ctx = await gather_all(
-        primary, lat=site_lat, lng=site_lng, climate=climate_meta
+        primary,
+        lat=site_lat,
+        lng=site_lng,
+        climate=climate_meta,
+        acres=acres,
     )
     ctx["matrix_summary"] = truncate_matrix_for_llm(matrix_summary)
     ctx["year_pack"] = True

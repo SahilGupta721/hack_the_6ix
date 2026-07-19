@@ -342,8 +342,16 @@ async def gather_all(
     lat: float | None = None,
     lng: float | None = None,
     climate: dict[str, Any] | None = None,
+    acres: float | None = None,
 ) -> dict[str, Any]:
     market, live_grid = await _gather_async(lat=lat, lng=lng)
+    site: dict[str, Any] = {
+        "lat": DEFAULT_SITE_LAT if lat is None else lat,
+        "lng": DEFAULT_SITE_LNG if lng is None else lng,
+    }
+    if acres is not None and acres > 0:
+        site["acres"] = round(float(acres), 4)
+        site["area_m2"] = round(float(acres) * 4046.8564224, 1)
     return {
         "comparison": comparison_context(comparison),
         "market": market,
@@ -371,10 +379,7 @@ async def gather_all(
                 ),
             },
         },
-        "site": {
-            "lat": DEFAULT_SITE_LAT if lat is None else lat,
-            "lng": DEFAULT_SITE_LNG if lng is None else lng,
-        },
+        "site": site,
     }
 
 

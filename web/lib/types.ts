@@ -182,6 +182,31 @@ export interface SourceRef {
   url?: string | null;
 }
 
+export interface ComplianceCheck {
+  id: string;
+  category: string;
+  rule: string;
+  clause: string;
+  model?: number | null;
+  model_display: string;
+  limit?: number | null;
+  limit_display: string;
+  unit?: string | null;
+  delta?: number | null;
+  delta_display: string;
+  status: "pass" | "warn" | "fail" | "info";
+  applies_to?: "both" | "A" | "B";
+  severity?: string;
+  note?: string | null;
+}
+
+export interface ComplianceTallies {
+  pass?: number;
+  warn?: number;
+  fail?: number;
+  info?: number;
+}
+
 export interface AgentBrief {
   agent_id: string;
   title: string;

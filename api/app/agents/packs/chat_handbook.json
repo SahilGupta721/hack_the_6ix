@@ -3,50 +3,95 @@
     {
       "id": "product",
       "title": "What INN-SIGHT is",
-      "keywords": ["innsight", "product", "app", "what is", "overview", "consultant"],
-      "text": "INN-SIGHT helps hospitality designers stress-test hotel, homestay, and B&B options on a real map pin before building. You pick a site, assemble Option A vs Option B (structure + HVAC), run year stress, and get an investor-style memo with sourced numbers. Core kWh, cost, and CO2 come from a deterministic model (benchmarks + sim), not from inventing values in chat."
+      "keywords": ["innsight", "product", "app", "overview", "consultant", "tool", "platform"],
+      "text": "INN-SIGHT is an AI consultant for hospitality design: pick a real map site, compare Option A vs B (structure + HVAC), run year stress, and get an investor memo with sourced kWh, cost, and CO2 from a deterministic model—not invented chat numbers."
     },
     {
       "id": "stress",
       "title": "How year stress works",
-      "keywords": ["stress", "year pack", "weekend", "heat", "cold", "era5", "weather", "peak", "strain", "48h"],
-      "text": "Run year stress simulates five extreme 48-hour weekends (heat-wave, summer shoulder, typical July, typical winter, deep cold)—not a full 8760h year. Outdoor temps prefer Open-Meteo ERA5 historical data for the selected lat/lng; if that fails, curated Toronto curves are used and labelled as fallback. Peak kW and STABLE/ELEVATED/CRITICAL strain come from the sim engine for Option A and B."
+      "keywords": [
+        "stress",
+        "stressing",
+        "testing",
+        "test",
+        "year pack",
+        "year stress",
+        "stress test",
+        "stress testing",
+        "weekend",
+        "heat",
+        "cold",
+        "era5",
+        "weather",
+        "peak",
+        "strain",
+        "48h",
+        "simulate",
+        "simulation"
+      ],
+      "text": "In INN-SIGHT, stress testing means Run year stress: the engine runs your building through five extreme 48-hour weather weekends (heat-wave, summer shoulder, typical July, typical winter, deep cold)—not a full 8760-hour year. Temps prefer Open-Meteo ERA5 for your map pin (Toronto fallback if offline). You get peak kW and STABLE/ELEVATED/CRITICAL strain for Option A and B, then an investor memo."
     },
     {
       "id": "options",
       "title": "Option A vs Option B",
-      "keywords": ["option a", "option b", "concrete", "timber", "heat pump", "hvac", "recommend", "abatement"],
-      "text": "Option A is typically concrete + central gas HVAC. Option B is typically mass timber + heat pumps. The memo recommends the greener option when implied carbon abatement cost is at or below Canada's federal ~$170/tCO2e benchmark; otherwise it may keep the cheaper path. Always cite the memo's comparison and recommendation fields when answering—do not invent new numbers."
+      "keywords": ["option a", "option b", "concrete", "timber", "heat pump", "hvac", "recommend", "abatement", "compare"],
+      "text": "Option A is typically concrete + central gas HVAC. Option B is typically mass timber + heat pumps. After year stress, the memo recommends the greener option when carbon abatement cost is at or below about $170/tCO2e (Canada federal benchmark); otherwise it may keep the cheaper path. Ask after you have a memo for your actual numbers."
     },
     {
       "id": "acres",
       "title": "Parcel acres and land use",
-      "keywords": ["acres", "area", "parcel", "land", "osm", "survey", "parking", "brownfield"],
-      "text": "Acres and land-use kind come from the selected OpenStreetMap empty-parcel polygon (approx. footprint). This is not a legal survey or vacant-lot registry. Approx pads may show acres without a tagged use."
+      "keywords": ["acres", "acre", "area", "parcel", "land", "osm", "survey", "parking", "brownfield", "size"],
+      "text": "Acres and land-use (e.g. parking, brownfield) come from the selected OpenStreetMap empty-parcel polygon—an approximate footprint, not a legal survey or vacant-lot registry."
     },
     {
       "id": "climate",
       "title": "Live site climate",
-      "keywords": ["climate", "weather", "temperature", "humidity", "wind", "elevation", "open-meteo"],
-      "text": "Site climate (temp, humidity, wind, elevation) is live Open-Meteo forecast for the active pin. It is separate from the historical ERA5 curves used inside the stress engine."
+      "keywords": ["climate", "weather", "temperature", "humidity", "wind", "elevation", "open-meteo", "forecast"],
+      "text": "Site climate (temp, humidity, wind, elevation) is a live Open-Meteo forecast for the active pin. That is separate from the historical ERA5 curves used inside year stress."
     },
     {
       "id": "memo",
       "title": "Investor memo",
-      "keywords": ["memo", "narrative", "footnote", "explain", "summary", "caveat", "investor"],
-      "text": "The investor memo packs deterministic sim results: A/B costs, carbon, peak strain, recommendation, reasoning chain, narrative, and footnotes to benchmark sources. Gemini may write narrative prose over those numbers; without a key, a deterministic fallback narrative is used. Chat must only explain numbers present in the provided memo context."
+      "keywords": ["memo", "narrative", "footnote", "explain", "summary", "caveat", "investor", "report"],
+      "text": "The investor memo is the report after year stress: A/B costs, carbon, peak strain, recommendation, reasoning, narrative, and footnotes. Generate it with Place building → Run year stress, then ask Explain this memo for your numbers."
+    },
+    {
+      "id": "compliance",
+      "title": "Rules & Compliance Engine",
+      "keywords": [
+        "compliance",
+        "zoning",
+        "bylaw",
+        "setback",
+        "setbacks",
+        "height limit",
+        "angular plane",
+        "parking",
+        "obc",
+        "building code",
+        "tgs",
+        "toronto green standard",
+        "emtc",
+        "mass timber",
+        "allowed",
+        "permit",
+        "rules",
+        "fsi",
+        "overlay"
+      ],
+      "text": "The Rules & Compliance Engine compares your assembled 3D massing (storeys, GFA, structure, HVAC) side-by-side against a City of Toronto / Ontario pack: zoning height, setbacks, angular plane, FSI, parking demand, OBC/EMTC, and Toronto Green Standard notes. It shows your model next to the rule clause and the delta (how much over/under)—like Option A vs B in the memo—not a hard pass/fail gate. Pack values are labelled heuristics for the demo site overlay; not a zoning opinion or legal advice. Ask after year stress when the multi-agent briefing includes the compliance table."
     },
     {
       "id": "honesty",
       "title": "Honesty ledger",
-      "keywords": ["honest", "real", "simulated", "estimate", "benchmark", "source"],
-      "text": "INN-SIGHT labels estimates vs sourced benchmarks. Friction scores are heuristics, not surveys. Green parcels are OSM open land, not a legal registry. Annual energy uses CBECS-style intensities; stress windows are 48h extremes, not metered bills for the exact building."
+      "keywords": ["honest", "real", "simulated", "estimate", "benchmark", "source", "accuracy"],
+      "text": "INN-SIGHT labels estimates vs sourced benchmarks. Friction is a heuristic, not a survey. Green parcels are OSM open land, not a legal registry. Stress windows are 48h extremes, not metered bills for the exact building. Compliance overlays are site-pack heuristics, not parcel-matched legal surveys."
     },
     {
       "id": "auth",
       "title": "Sign-in",
       "keywords": ["sign in", "login", "auth0", "google", "logout", "account"],
-      "text": "When Auth0 is enabled, Google sign-in creates/syncs a profile. Past runs can be stored per user. Chat cannot change auth settings."
+      "text": "When Auth0 is on, Google sign-in syncs your profile and can store past runs. Chat cannot change auth settings."
     }
   ]
 }

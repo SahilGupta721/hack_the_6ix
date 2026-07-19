@@ -29,6 +29,7 @@ class BriefingRequest(BaseModel):
         default="slab",
         pattern="^(slab|l_wing|courtyard|podium_tower)$",
     )
+    acres: float | None = Field(default=None, gt=0, le=100)
     force_refresh: bool = False
 
 
@@ -49,6 +50,7 @@ class YearBriefingRequest(BaseModel):
         default="slab",
         pattern="^(slab|l_wing|courtyard|podium_tower)$",
     )
+    acres: float | None = Field(default=None, gt=0, le=100)
     force_refresh: bool = False
 
 
@@ -93,6 +95,18 @@ def _try_cache(
     )
     doc = find_cached_run(fp, auth0_sub=auth0_sub)
     if doc is None:
+        return None
+    # Stale packs built without Gemini — do not reuse once a key may be present.
+    reason = (
+        (doc.get("briefing_fallback_reason") or doc.get("fallback_reason") or "")
+        .strip()
+        .lower()
+    )
+    if reason in {"no_api_key", "no-api-key"} or "no_api_key" in reason:
+        return None
+    report = doc.get("report") if isinstance(doc.get("report"), dict) else {}
+    report_reason = str(report.get("fallback_reason") or "").strip().lower()
+    if report_reason in {"no_api_key", "no-api-key"} or "no_api_key" in report_reason:
         return None
     return cached_payload_from_doc(doc)
 
@@ -143,6 +157,7 @@ async def briefing(
             lng=req.lng,
             storeys=req.storeys,
             shape=req.shape,
+            acres=req.acres,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -227,6 +242,7 @@ async def briefing_year(
             lng=req.lng,
             storeys=req.storeys,
             shape=req.shape,
+            acres=req.acres,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

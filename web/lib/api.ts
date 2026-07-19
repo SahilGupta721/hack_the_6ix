@@ -106,7 +106,7 @@ export function fetchYearBriefing(
   rooms: number,
   overrides?: OptionOverrides,
   auth0Sub?: string,
-  site?: { lat: number; lng: number; name?: string },
+  site?: { lat: number; lng: number; name?: string; acres?: number },
   planning?: { storeys?: number; shape?: string },
   forceRefresh?: boolean,
 ): Promise<YearBriefing> {
@@ -120,6 +120,7 @@ export function fetchYearBriefing(
           lat: site.lat,
           lng: site.lng,
           ...(site.name ? { site_name: site.name } : {}),
+          ...(site.acres != null && site.acres > 0 ? { acres: site.acres } : {}),
         }
       : {}),
     ...(planning?.storeys != null ? { storeys: planning.storeys } : {}),

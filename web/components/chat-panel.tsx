@@ -12,11 +12,18 @@ interface ChatMessage {
   citations?: string[];
 }
 
-const SUGGESTIONS = [
+const SUGGESTIONS_WITH_MEMO = [
   "Explain this memo",
   "Why Option B?",
   "What are acres?",
   "How does year stress work?",
+];
+
+const SUGGESTIONS_NO_MEMO = [
+  "What is a memo?",
+  "How does year stress work?",
+  "What are acres?",
+  "What is Option A vs B?",
 ];
 
 interface ChatPanelProps {
@@ -46,10 +53,11 @@ export function ChatPanel({
     {
       role: "assistant",
       content:
-        "Ask about INN-SIGHT, your site, year stress, or the investor memo after you run a stress test.",
+        "Hi - ask about your site, year stress, or Option A vs B. After you Run year stress I can explain your investor memo. If there is no memo yet, ask What is a memo?",
     },
   ]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const suggestions = memo ? SUGGESTIONS_WITH_MEMO : SUGGESTIONS_NO_MEMO;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -114,7 +122,9 @@ export function ChatPanel({
                 INN-SIGHT assistant
               </p>
               <p className="text-[10px] text-text-soft">
-                {memo ? "Memo loaded · app-only answers" : "No memo yet · product Q&A"}
+                {memo
+                  ? "Memo loaded - ask me to explain it"
+                  : "No memo yet - I can still explain what a memo is"}
               </p>
             </div>
             <button
@@ -148,7 +158,7 @@ export function ChatPanel({
           </div>
 
           <div className="flex flex-wrap gap-x-2 gap-y-1 border-t border-panel-border px-3 pt-2">
-            {SUGGESTIONS.map((s) => (
+            {suggestions.map((s) => (
               <button
                 key={s}
                 type="button"

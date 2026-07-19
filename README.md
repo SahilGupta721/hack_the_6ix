@@ -2,7 +2,7 @@
 
 The AI consultant that tells you what to build, before you build it.
 
-Place a hotel, homestay, or B&B on a real Toronto map, toggle concrete vs mass timber and central HVAC vs heat pumps, stress-test the design against a fully booked heat-wave weekend, and receive an investor-style memo: construction cost, annual energy cost, tCO2e per year with sources, a documented community-friction heuristic, and a recommendation with reasoning.
+Place a hotel, homestay, or B&B on a real Toronto map, toggle concrete vs mass timber and central HVAC vs heat pumps, stress-test the design against a fully booked heat-wave weekend, and receive an investor-style memo: construction cost, annual energy cost, tCO2e per year with sources, a documented community-friction heuristic, and a recommendation with reasoning. A Rules & Compliance Engine then lays your massing beside Toronto zoning / OBC / TGS clauses so you can see what you are actually allowed to build here — not just what you should.
 
 Built at Hack the 6ix 2026.
 
@@ -61,6 +61,7 @@ Honesty first: this table says exactly what is real and what is a labelled simul
 | Electricity Maps carbon | Live zone intensity when `ELECTRICITYMAPS_API_KEY` is set (lat/lon then CA-ON fallback); else TAF Ontario benchmarks |
 | Open-Meteo climate curves | Archive hourly temps at the pin → five named extreme 48h weekends for year-pack sim; Toronto fixed curves if unreachable; **not** 8760h |
 | Multi-agent briefing | Specialists (market, environment, neighbourhood, green ratio, friction, compliance) + boss; Gemini structured JSON when keyed, deterministic stubs otherwise; sim remains source of truth for A/B numbers |
+| Rules & Compliance Engine | Side-by-side massing vs City of Toronto / Ontario pack (height, setbacks, angular plane, FSI, parking, OBC/EMTC, TGS); shows model next to clause + delta — **not** a pass/fail permit gate; overlays are labelled heuristics, not parcel-matched legal surveys |
 | Agent inference footprint | Token usage from Gemini `usage_metadata` when live; energy/gCO2e are labelled estimates (~0.3 Wh/1k tokens × live Electricity Maps or TAF Ontario gCO2e/kWh); shown on year-pack memo + physics log |
 | Year-pack parallel stress | One action runs all five extreme weekends in parallel (deterministic sim matrix, location climate when live); shared Stay22/env gather; ~8 Gemini calls total (6 specialists + year boss + one portfolio memo), not 5× full briefing |
 | Seasonal stress scenarios | Named extreme weekends (heat-wave, summer shoulder, typical July, typical winter, deep cold); 48h peak curves with heating + cooling; annual energy still CBECS averages, not 8760h weather |

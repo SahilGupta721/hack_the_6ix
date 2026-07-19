@@ -509,19 +509,59 @@ export default function HomePage() {
       hvac_b: deriveHvac(componentsByOption.B),
     };
     const auth0Sub = FLAGS.auth0 && auth.sub ? auth.sub : undefined;
+    const parcelAcres =
+      candidates.find((c) => c.id === selectedCandidateId)?.area_acres ??
+      (activeSite.polygon ? polygonAreaAcres(activeSite.polygon) : undefined);
     try {
-      const year = await fetchYearBriefing(
+      const siteArg = {
+        lat: activeSite.lat,
+        lng: activeSite.lng,
+        name: activeSite.name,
+        ...(parcelAcres != null && parcelAcres > 0
+          ? { acres: parcelAcres }
+          : {}),
+      };
+      const planning = { storeys, shape: shapeId };
+      let year = await fetchYearBriefing(
         engineType,
         rooms,
         overrides,
         auth0Sub,
-        {
-          lat: activeSite.lat,
-          lng: activeSite.lng,
-          name: activeSite.name,
-        },
-        { storeys, shape: shapeId },
+        siteArg,
+        planning,
       );
+      // Old Mongo cache may predate the Rules & Compliance Engine table,
+      // or was built when GEMINI_API_KEY was missing (shows "no_api_key").
+      const cachedChecks = year.briefs?.compliance?.metrics?.checks;
+      const staleGemini =
+        Boolean(year.from_cache) &&
+        (
+          (year.fallback_reason ?? "").toLowerCase().includes("no_api_key") ||
+          (year.memo?.narrative?.fallback_reason ?? "")
+            .toLowerCase()
+            .includes("no_api_key") ||
+          (year.generator ?? "").toLowerCase().includes("deterministic-fallback")
+        );
+      if (
+        !Array.isArray(cachedChecks) ||
+        cachedChecks.length === 0 ||
+        staleGemini
+      ) {
+        appendLog(
+          staleGemini
+            ? "Cached pack had no Gemini — re-running year pack with force_refresh…"
+            : "Compliance table missing — re-running year pack with force_refresh…",
+        );
+        year = await fetchYearBriefing(
+          engineType,
+          rooms,
+          overrides,
+          auth0Sub,
+          siteArg,
+          planning,
+          true,
+        );
+      }
       if (runToken.current !== token) return;
       if (year.from_cache) {
         appendLog(
@@ -607,11 +647,14 @@ export default function HomePage() {
     activeSite.lat,
     activeSite.lng,
     activeSite.name,
+    activeSite.polygon,
     appendLog,
     auth.loggedIn,
     auth.sub,
+    candidates,
     componentsByOption,
     rooms,
+    selectedCandidateId,
     shapeId,
     storeys,
     uiType,

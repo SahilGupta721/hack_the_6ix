@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from pathlib import Path
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -12,6 +13,18 @@ from pydantic import BaseModel
 GEMINI_MODEL = "gemini-flash-latest"
 # Cap concurrent Gemini calls to protect RPM / prepaid credits.
 _GEMINI_SEM = threading.Semaphore(4)
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def refresh_dotenv() -> None:
+    """Reload repo-root `.env` into os.environ (key edits without full restart)."""
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(_REPO_ROOT / ".env", override=True)
+    except Exception:
+        pass
 
 
 class LLMProvider(Protocol):
@@ -77,6 +90,8 @@ def get_provider(api_key: str | None = None) -> tuple[LLMProvider, str | None]:
     Probes Gemini once when a key is present so credit/auth failures surface
     instead of silently labelling the run as if no key existed.
     """
+    if api_key is None:
+        refresh_dotenv()
     raw = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY")
     key = (raw or "").strip()
     if not key:

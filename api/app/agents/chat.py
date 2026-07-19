@@ -15,13 +15,144 @@ HANDBOOK_PATH = PACKS_DIR / "chat_handbook.json"
 
 _SYSTEM = """You are INN-SIGHT's in-app consultant assistant.
 Only answer questions about INN-SIGHT: the map/site assembler, year stress tests,
-investor memos, Option A vs B, acres/land use, climate, and honesty of the numbers.
-Refuse off-topic requests briefly and steer back to the product.
-Never invent kWh, $, CO2, peak kW, or recommendations — only use numbers from the
-MEMO CONTEXT or say you do not have that figure (suggest Run year stress).
-If the user asks to explain the memo and MEMO CONTEXT is empty, tell them to run
-year stress first. Prefer short, clear answers (2–6 sentences). Cite handbook
-chunk titles when you use them."""
+investor memos, Option A vs B, acres/land use, climate, rules & compliance
+(zoning / OBC / TGS overlays), and honesty of the numbers.
+
+EDGE CASES (follow exactly):
+1) Off-topic (sports, news, trivia, other apps): short apology + redirect to product topics. No brochure dump.
+2) User asks to explain / summarize the memo but memo_context is null:
+   - Say there is no memo yet (they must Place building → Run year stress).
+   - Offer to explain what an investor memo is.
+   - Offer other help (year stress, acres, Option A vs B).
+3) User asks what a memo is (even with no memo): explain from handbook; do not pretend numbers exist.
+4) User asks why Option A/B or recommendation with no memo: say results appear after year stress; briefly what A vs B means.
+5) Memo present: use only memo_context numbers; never invent kWh/$.
+6) Greetings (hi/hello): welcome briefly and list what you can help with.
+
+Prefer 2–4 sentence answers that directly address the user question first.
+Use the highest-ranked handbook chunk; do not lead with a generic product pitch
+unless they asked what INN-SIGHT is."""
+
+_OFFTOPIC_REFUSAL = (
+    "Sorry - I can only help with INN-SIGHT (sites, year stress, Option A/B, "
+    "acres, climate, compliance, or your investor memo). "
+    "Try asking: How does year stress work? | What are acres? | Explain this memo."
+)
+
+_GREETING_REPLY = (
+    "Hi - I am the INN-SIGHT assistant. I can help with your site (acres, climate), "
+    "how year stress works, Option A vs B, rules & compliance, or your investor memo "
+    "after you run a stress test. What would you like to know?"
+)
+
+_NO_MEMO_EXPLAIN = (
+    "There is no investor memo to explain yet. "
+    "Place a building on the map, then click Run year stress to generate one. "
+    "Want me to explain what a memo is, how year stress works, or what acres mean on the site card?"
+)
+
+_NO_MEMO_OPTIONS = (
+    "I do not have A vs B results yet - those appear in the memo after Run year stress. "
+    "In short: Option A is usually concrete + central HVAC; Option B is mass timber + heat pumps. "
+    "Want a deeper comparison of how we choose a recommendation, or how year stress works?"
+)
+
+_WHAT_IS_MEMO = (
+    "An INN-SIGHT investor memo is the report after year stress: Option A vs B costs, "
+    "carbon, peak grid strain, a recommendation with reasoning, narrative, and footnotes "
+    "to sourced benchmarks. Numbers come from the deterministic model - chat will not invent them. "
+    "Generate one with Place building → Run year stress, then ask Explain this memo."
+)
+
+
+# Tokens that count as in-scope for this product.
+_ON_TOPIC_TOKENS = {
+    "innsight",
+    "inn",
+    "sight",
+    "hotel",
+    "homestay",
+    "bnb",
+    "boutique",
+    "tower",
+    "building",
+    "assembler",
+    "parcel",
+    "acres",
+    "acre",
+    "area",
+    "land",
+    "osm",
+    "map",
+    "site",
+    "climate",
+    "weather",
+    "temp",
+    "temperature",
+    "humidity",
+    "wind",
+    "elevation",
+    "stress",
+    "year",
+    "weekend",
+    "heat",
+    "cold",
+    "heatwave",
+    "era5",
+    "peak",
+    "strain",
+    "kw",
+    "kwh",
+    "energy",
+    "carbon",
+    "co2",
+    "tco2e",
+    "option",
+    "concrete",
+    "timber",
+    "hvac",
+    "pump",
+    "memo",
+    "investor",
+    "recommend",
+    "recommendation",
+    "footnote",
+    "benchmark",
+    "sim",
+    "model",
+    "cost",
+    "capex",
+    "abatement",
+    "friction",
+    "auth0",
+    "sign",
+    "login",
+    "logout",
+    "place",
+    "massing",
+    "storey",
+    "storeys",
+    "floor",
+    "rooms",
+    "explain",
+    "honest",
+    "estimate",
+    "toronto",
+    "esplanade",
+    "compliance",
+    "zoning",
+    "bylaw",
+    "setback",
+    "setbacks",
+    "obc",
+    "tgs",
+    "emtc",
+    "angular",
+    "fsi",
+    "permit",
+    "overlay",
+    "parking",
+}
 
 
 class ChatTurn(BaseModel):
@@ -51,6 +182,69 @@ class ChatResponse(BaseModel):
     fallback_reason: str | None = None
 
 
+def _tokens(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+# Weak question words alone do not make a query on-topic.
+_WEAK_TOKENS = {
+    "a",
+    "an",
+    "the",
+    "is",
+    "are",
+    "was",
+    "were",
+    "do",
+    "does",
+    "did",
+    "can",
+    "could",
+    "should",
+    "would",
+    "will",
+    "what",
+    "when",
+    "where",
+    "who",
+    "whom",
+    "which",
+    "why",
+    "how",
+    "me",
+    "my",
+    "your",
+    "this",
+    "that",
+    "it",
+    "to",
+    "for",
+    "of",
+    "on",
+    "in",
+    "about",
+    "please",
+    "tell",
+    "show",
+    "help",
+}
+
+
+def is_on_topic(message: str) -> bool:
+    """True if the question looks related to INN-SIGHT / memo / site."""
+    tokens = _tokens(message) - _WEAK_TOKENS
+    if not tokens:
+        return False
+    if tokens & _ON_TOPIC_TOKENS:
+        return True
+    for chunk in _load_handbook():
+        keys = {str(k).lower() for k in (chunk.get("keywords") or [])}
+        title_bits = _tokens(str(chunk.get("title") or "")) - _WEAK_TOKENS
+        if tokens & (keys | title_bits):
+            return True
+    return False
+
+
 def _load_handbook() -> list[dict[str, Any]]:
     data = json.loads(HANDBOOK_PATH.read_text(encoding="utf-8"))
     chunks = data.get("chunks") or []
@@ -58,28 +252,77 @@ def _load_handbook() -> list[dict[str, Any]]:
 
 
 def retrieve_chunks(query: str, *, limit: int = 3) -> list[dict[str, Any]]:
-    """Keyword score static handbook chunks (RAG-lite, no embeddings)."""
-    tokens = set(re.findall(r"[a-z0-9]+", query.lower()))
+    """Keyword / phrase score static handbook chunks (RAG-lite)."""
+    q = query.lower().strip()
+    tokens = _tokens(q) - _WEAK_TOKENS
     scored: list[tuple[int, dict[str, Any]]] = []
+
     for chunk in _load_handbook():
-        keys = {str(k).lower() for k in (chunk.get("keywords") or [])}
+        keys = [str(k).lower() for k in (chunk.get("keywords") or [])]
         title = str(chunk.get("title") or "").lower()
-        score = sum(1 for t in tokens if t in keys or t in title)
-        # Soft boost when asking about memo/explain
-        if {"memo", "explain", "recommend", "option"} & tokens and chunk.get("id") in {
-            "memo",
-            "options",
-            "stress",
-        }:
-            score += 2
+        body = str(chunk.get("text") or "").lower()
+        cid = str(chunk.get("id") or "")
+        score = 0
+
+        # Phrase hits beat single tokens.
+        for key in keys:
+            if " " in key and key in q:
+                score += 4
+            elif " " not in key and key in tokens:
+                score += 2
+
+        # Title/body token overlap (ignore weak words).
+        title_toks = _tokens(title) - _WEAK_TOKENS
+        score += sum(1 for t in tokens if t in title_toks)
+
+        # Intent boosts — prefer specific topics over the product blurb.
+        if tokens & {"stress", "testing", "test", "strain", "weekend", "era5"} and cid == "stress":
+            score += 5
+        if tokens & {"memo", "report", "footnote"} and cid == "memo":
+            score += 4
+        if tokens & {"acre", "acres", "parcel", "brownfield", "parking"} and cid == "acres":
+            score += 4
+        if tokens & {"option", "concrete", "timber", "hvac", "abatement"} and cid == "options":
+            score += 4
+        if tokens & {"climate", "humidity", "wind", "elevation", "forecast"} and cid == "climate":
+            score += 4
+        if tokens & {
+            "compliance",
+            "zoning",
+            "bylaw",
+            "setback",
+            "setbacks",
+            "obc",
+            "tgs",
+            "emtc",
+            "angular",
+            "fsi",
+            "permit",
+            "overlay",
+        } and cid == "compliance":
+            score += 5
+        if tokens & {"innsight", "product", "app", "tool", "platform"} and cid == "product":
+            score += 3
+
+        # Demote generic product overview unless they asked about the product.
+        if cid == "product" and not (tokens & {"innsight", "product", "app", "tool", "platform", "overview"}):
+            score -= 3
+
         if score > 0:
             scored.append((score, chunk))
+
     scored.sort(key=lambda t: (-t[0], str(t[1].get("id"))))
-    if not scored:
-        # Always give product + honesty when nothing matches.
-        by_id = {c.get("id"): c for c in _load_handbook()}
-        return [c for c in (by_id.get("product"), by_id.get("honesty")) if c]
     return [c for _, c in scored[:limit]]
+
+
+def _direct_answer(query: str, chunk: dict[str, Any]) -> str:
+    """Lead with a short answer line, then the chunk body."""
+    text = str(chunk.get("text") or "").strip()
+    title = str(chunk.get("title") or "INN-SIGHT")
+    q = query.lower()
+    if any(w in q for w in ("what is", "what's", "whats", "what does", "explain", "how does", "how do")):
+        return f"{title}: {text}"
+    return text
 
 
 def slim_memo(memo: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -121,6 +364,93 @@ def slim_memo(memo: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+def _has_usable_memo(memo: dict[str, Any] | None) -> bool:
+    slim = slim_memo(memo)
+    if not slim:
+        return False
+    narr = slim.get("narrative") or {}
+    if narr.get("summary") or (narr.get("reasoning") or []):
+        return True
+    if slim.get("options") or slim.get("recommended"):
+        return True
+    return False
+
+
+def _is_greeting(message: str) -> bool:
+    t = _tokens(message) - _WEAK_TOKENS
+    greet = {"hi", "hello", "hey", "yo", "sup", "thanks", "thank", "hola"}
+    return bool(t) and t <= greet
+
+
+def _asks_what_is_memo(message: str) -> bool:
+    q = message.lower()
+    if "memo" not in q:
+        return False
+    return any(
+        p in q
+        for p in (
+            "what is",
+            "what's",
+            "whats",
+            "what does",
+            "mean",
+            "define",
+            "definition",
+            "tell me about a memo",
+            "tell me about the memo format",
+        )
+    )
+
+
+def _asks_explain_memo(message: str) -> bool:
+    q = message.lower()
+    if "memo" in q and any(
+        w in q for w in ("explain", "summarize", "summary", "walk me", "break down")
+    ):
+        return True
+    if q.strip() in {"explain this memo", "explain memo", "explain the memo"}:
+        return True
+    return False
+
+
+def _asks_options_or_recommend(message: str) -> bool:
+    q = message.lower()
+    return any(
+        p in q
+        for p in (
+            "option a",
+            "option b",
+            "why a",
+            "why b",
+            "recommend",
+            "recommendation",
+            "which option",
+            "better option",
+        )
+    )
+
+
+def _explain_memo_text(memo: dict[str, Any]) -> str:
+    slim = slim_memo(memo) or {}
+    narr = slim.get("narrative") or {}
+    parts: list[str] = []
+    if narr.get("summary"):
+        parts.append(str(narr["summary"]).strip())
+    for line in narr.get("reasoning") or []:
+        parts.append(str(line))
+    rec = slim.get("recommended")
+    if rec:
+        parts.append(f"Recommended option: {rec}.")
+    for cave in (narr.get("caveats") or [])[:2]:
+        parts.append(f"Caveat: {cave}")
+    if not parts:
+        return (
+            "A memo is loaded but has little narrative text. "
+            "Open View memo in the stress overlay for the full tables, or ask about peak strain / costs."
+        )
+    return " ".join(parts)[:1400]
+
+
 def _build_user_prompt(
     message: str,
     history: list[ChatTurn],
@@ -138,10 +468,18 @@ def _build_user_prompt(
         {"role": t.role, "content": t.content[:1500]}
         for t in history[-8:]
     ]
+    has_memo = _has_usable_memo(memo)
     payload = {
+        "flags": {
+            "has_memo": has_memo,
+            "is_greeting": _is_greeting(message),
+            "asks_explain_memo": _asks_explain_memo(message),
+            "asks_what_is_memo": _asks_what_is_memo(message),
+            "asks_options": _asks_options_or_recommend(message),
+        },
         "site": site.model_dump() if site else None,
         "handbook_chunks": handbook,
-        "memo_context": slim_memo(memo),
+        "memo_context": slim_memo(memo) if has_memo else None,
         "boss_synthesis": (
             {
                 "headline": (synthesis or {}).get("headline"),
@@ -163,27 +501,35 @@ def _fallback_reply(
     memo: dict[str, Any] | None,
     chunks: list[dict[str, Any]],
 ) -> str:
-    q = message.lower()
-    slim = slim_memo(memo)
-    if any(w in q for w in ("memo", "explain", "recommend", "option", "why")):
-        if slim and (slim.get("narrative") or {}).get("summary"):
-            narr = slim["narrative"]
-            parts = [str(narr.get("summary") or "").strip()]
-            for line in narr.get("reasoning") or []:
-                parts.append(str(line))
-            rec = slim.get("recommended")
-            if rec:
-                parts.append(f"Recommended option: {rec}.")
-            return " ".join(p for p in parts if p)[:1200]
-        return (
-            "No investor memo is loaded yet. Place a building, click "
-            "Run year stress, then ask me to explain the memo."
-        )
+    if not is_on_topic(message) and not _is_greeting(message):
+        return _OFFTOPIC_REFUSAL
+    if _is_greeting(message):
+        return _GREETING_REPLY
+
+    has_memo = _has_usable_memo(memo)
+
+    if _asks_what_is_memo(message):
+        return _WHAT_IS_MEMO
+
+    if _asks_explain_memo(message):
+        if has_memo and memo:
+            return _explain_memo_text(memo)
+        return _NO_MEMO_EXPLAIN
+
+    if _asks_options_or_recommend(message):
+        if has_memo and memo:
+            return _explain_memo_text(memo)
+        return _NO_MEMO_OPTIONS
+
+    # Generic "memo" mention without explain → guide
+    if "memo" in message.lower() and not has_memo:
+        return _NO_MEMO_EXPLAIN
+
     if chunks:
-        return str(chunks[0].get("text") or "")[:900]
+        return _direct_answer(message, chunks[0])[:1000]
     return (
-        "I only help with INN-SIGHT: sites, stress tests, and memos. "
-        "Ask about year stress, Option A vs B, or parcel acres."
+        "I can help with INN-SIGHT sites, year stress, Option A vs B, acres, "
+        "rules & compliance, or your memo. What would you like to know?"
     )
 
 
@@ -210,7 +556,78 @@ def _gemini_text(system: str, user: str, api_key: str) -> str:
 
 
 def answer_chat(req: ChatRequest) -> ChatResponse:
+    # Affirmative follow-up after we offered to explain what a memo is.
+    affirm = _tokens(req.message) - _WEAK_TOKENS
+    if affirm and affirm <= {"yes", "yeah", "yep", "sure", "ok", "okay", "please"}:
+        last_assist = next(
+            (t.content.lower() for t in reversed(req.history) if t.role == "assistant"),
+            "",
+        )
+        if "what a memo" in last_assist or "explain what a memo" in last_assist:
+            return ChatResponse(
+                reply=_WHAT_IS_MEMO,
+                citations=["Investor memo"],
+                generator="fallback",
+                fallback_reason="affirm_what_is_memo",
+            )
+        if "year stress" in last_assist:
+            chunks = retrieve_chunks("how does year stress work", limit=1)
+            return ChatResponse(
+                reply=_fallback_reply("how does year stress work", req.memo, chunks),
+                citations=[str(c.get("title") or c.get("id")) for c in chunks],
+                generator="fallback",
+                fallback_reason="affirm_stress",
+            )
+
+    # Greetings are in-scope even without product keywords.
+    if _is_greeting(req.message):
+        return ChatResponse(
+            reply=_GREETING_REPLY,
+            citations=[],
+            generator="fallback",
+            fallback_reason="greeting",
+        )
+
+    if not is_on_topic(req.message):
+        return ChatResponse(
+            reply=_OFFTOPIC_REFUSAL,
+            citations=[],
+            generator="fallback",
+            fallback_reason="off_topic",
+        )
+
+    # Deterministic edge paths (work even when Gemini is up — consistent UX).
+    has_memo = _has_usable_memo(req.memo)
+    if _asks_what_is_memo(req.message):
+        return ChatResponse(
+            reply=_WHAT_IS_MEMO,
+            citations=["Investor memo"],
+            generator="fallback",
+            fallback_reason="what_is_memo",
+        )
+    if _asks_explain_memo(req.message) and not has_memo:
+        return ChatResponse(
+            reply=_NO_MEMO_EXPLAIN,
+            citations=[],
+            generator="fallback",
+            fallback_reason="no_memo",
+        )
+    if _asks_options_or_recommend(req.message) and not has_memo:
+        return ChatResponse(
+            reply=_NO_MEMO_OPTIONS,
+            citations=["Option A vs Option B"],
+            generator="fallback",
+            fallback_reason="no_memo_options",
+        )
+
     chunks = retrieve_chunks(req.message, limit=3)
+    # Prefer memo handbook chunk when explaining with a live memo.
+    if _asks_explain_memo(req.message) and has_memo:
+        by_id = {c.get("id"): c for c in _load_handbook()}
+        memo_chunk = by_id.get("memo")
+        if memo_chunk and memo_chunk not in chunks:
+            chunks = [memo_chunk, *chunks][:3]
+
     citations = [str(c.get("title") or c.get("id")) for c in chunks]
     user_prompt = _build_user_prompt(
         req.message,
@@ -224,6 +641,11 @@ def answer_chat(req: ChatRequest) -> ChatResponse:
 
     key = (os.environ.get("GEMINI_API_KEY") or "").strip()
     if not key:
+        from app.agents.llm import refresh_dotenv
+
+        refresh_dotenv()
+        key = (os.environ.get("GEMINI_API_KEY") or "").strip()
+    if not key:
         return ChatResponse(
             reply=_fallback_reply(req.message, req.memo, chunks),
             citations=citations,
@@ -232,6 +654,8 @@ def answer_chat(req: ChatRequest) -> ChatResponse:
         )
 
     try:
+        # Explain-with-memo: prefer deterministic numbers, Gemini can polish via prompt;
+        # still call Gemini for richer wording when key exists.
         reply = _gemini_text(_SYSTEM, user_prompt, key)
         return ChatResponse(
             reply=reply,

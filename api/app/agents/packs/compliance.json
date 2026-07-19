@@ -1,49 +1,122 @@
 {
   "jurisdiction": "City of Toronto / Province of Ontario",
-  "building_type_notes": {
-    "homestay": "Small operator short-term rental rules and licensing may apply; check Toronto STR bylaw and provincial hotel tax if advertising as lodging.",
-    "boutique": "Purpose-built hotel typically under Ontario Building Code Part 3; hospitality occupancy classification.",
-    "tower": "High-rise Part 3; additional high-building measures and egress."
+  "disclaimer": "Heuristic site-pack checks for demo briefing — not a zoning opinion, survey, or legal advice. Confirm with City Planning / a qualified code professional.",
+  "zoning_district": {
+    "code": "CR (Commercial Residential) — downtown site pack",
+    "note": "Default overlay for St. Lawrence / Harbourfront demo parcels. Real designation must be confirmed on the City of Toronto Zoning By-law Map.",
+    "bylaw": "City of Toronto Zoning By-law 569-2013",
+    "status": "heuristic"
   },
+  "site_overlays": {
+    "max_height_m": 46.0,
+    "max_storeys_hint": 13,
+    "front_setback_m": 3.0,
+    "side_setback_m": 0.0,
+    "rear_setback_m": 7.5,
+    "angular_plane_deg": 45,
+    "angular_plane_from": "front lot line at grade (simplified)",
+    "parking_spaces_per_room": 0.2,
+    "parking_note": "Downtown Toronto largely uses parking maximums; this pack still flags hospitality stall demand as a site-plan discussion item.",
+    "fsi_max": 4.5,
+    "status": "heuristic",
+    "source_label": "Site overlay pack: downtown CR heuristic (height / setbacks / FSI / angular plane)"
+  },
+  "assumptions": {
+    "storey_height_m": 3.5,
+    "sqft_per_room": {
+      "homestay": 450,
+      "boutique": 350,
+      "tower": 320
+    },
+    "m2_per_sqft": 0.092903,
+    "lot_depth_fraction_of_sqrt": 1.25,
+    "status": "estimate",
+    "note": "Storey height and lot depth are labelled estimates used only to compare massing to overlay limits."
+  },
+  "building_code": [
+    {
+      "id": "obc_part3",
+      "item": "Ontario Building Code Part 3",
+      "clause": "OBC Part 3 — Fire Protection, Occupant Safety and Accessibility (Group C / hospitality occupancy for purpose-built lodging)",
+      "note": "Boutique and tower hospitality are typically Part 3; small homestays may sit closer to Part 9 depending on size and use.",
+      "status": "heuristic"
+    },
+    {
+      "id": "emtc_height",
+      "item": "Encapsulated mass timber (EMTC) height",
+      "clause": "OBC amendments permitting encapsulated mass timber construction within stated height/area limits",
+      "limit_storeys": 12,
+      "limit_m": 42.0,
+      "note": "Mass timber Option B is checked against this pack limit; detailing (fire, acoustic) still adds design cost.",
+      "status": "estimate"
+    },
+    {
+      "id": "aoda",
+      "item": "Barrier-free access",
+      "clause": "AODA / OBC barrier-free design — accessible guest rooms and public areas",
+      "note": "Room count drives accessible-suite share discussions; not auto-sized in this demo.",
+      "status": "heuristic"
+    }
+  ],
   "energy_and_climate": [
     {
+      "id": "obc_energy",
       "item": "Ontario Building Code energy efficiency",
+      "clause": "OBC energy efficiency provisions for new buildings",
       "note": "New buildings must meet current OBC energy provisions; Toronto Green Standard (TGS) may apply for site plan applications.",
       "status": "heuristic"
     },
     {
+      "id": "tgs",
       "item": "Toronto Green Standard",
-      "note": "If site plan approval is required, TGS tiers drive energy, GHG, and resilience requirements that favour electrification and lower embodied carbon.",
+      "clause": "Toronto Green Standard (TGS) — energy, GHG, and resilience requirements on site-plan pathway",
+      "note": "Electrification and lower embodied carbon favour Option B when TGS applies.",
       "status": "heuristic"
     },
     {
-      "item": "Mass timber",
-      "note": "Encapsulated mass timber construction (EMTC) is allowed under recent OBC amendments within height/area limits; fire and acoustic detailing add design cost.",
-      "status": "estimate"
-    },
-    {
+      "id": "central_gas",
       "item": "Central gas HVAC",
-      "note": "Gas-fired central plant remains code-compliant today but faces rising carbon-price exposure and potential future electrification policy pressure.",
+      "clause": "Gas-fired central plant — currently code-compliant; carbon-price and future electrification policy exposure",
+      "note": "Compliant today; rising carbon-price exposure.",
       "status": "estimate"
     }
   ],
   "hospitality_ops": [
     {
+      "id": "str_tax",
       "item": "Municipal accommodation tax / HST",
+      "clause": "Toronto STR / lodging tax + HST on accommodation revenue",
       "note": "Lodging revenue typically attracts HST and local accommodation tax; structure does not change tax, but scale does.",
       "status": "heuristic"
     },
     {
-      "item": "Accessibility",
-      "note": "AODA / OBC barrier-free requirements for guest rooms and public areas.",
+      "id": "str_licence",
+      "item": "Short-term rental licensing",
+      "clause": "City of Toronto short-term rental bylaw / licensing (homestay / principal-residence pathways)",
+      "note": "Homestay operators may need STR registration; purpose-built hotels follow commercial lodging rules.",
       "status": "heuristic"
     }
   ],
+  "building_type_notes": {
+    "homestay": "Small operator short-term rental rules and licensing may apply; check Toronto STR bylaw and provincial hotel tax if advertising as lodging.",
+    "boutique": "Purpose-built hotel typically under Ontario Building Code Part 3; hospitality occupancy classification.",
+    "tower": "High-rise Part 3; additional high-building measures and egress."
+  },
   "sources": [
     {
-      "label": "Compliance pack: Ontario/Toronto hospitality + energy checklist",
+      "label": "City of Toronto Zoning By-law 569-2013 (overlay pack is heuristic, not parcel-matched)",
+      "status": "heuristic",
+      "url": "https://www.toronto.ca/city-government/planning-development/zoning-by-law-preliminary-zoning-reviews/"
+    },
+    {
+      "label": "Ontario Building Code / EMTC guidance (height limit estimate in pack)",
       "status": "estimate",
-      "url": null
+      "url": "https://www.ontario.ca/page/building-code-act"
+    },
+    {
+      "label": "Toronto Green Standard",
+      "status": "heuristic",
+      "url": "https://www.toronto.ca/city-government/planning-development/official-plan-guidelines/toronto-green-standard/"
     }
   ]
 }

@@ -27,7 +27,7 @@ export function AgentBriefingPanel({
   const ordered = ORDER.map((id) => briefs[id]).filter(Boolean);
 
   return (
-    <div className="mb-2.5 max-h-[42%] min-h-0 overflow-y-auto rounded border border-white/15 bg-white/5 px-3 py-2">
+    <div className="mb-2.5 max-h-[36%] min-h-0 overflow-y-auto rounded border border-white/15 bg-white/5 px-3 py-2">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">
           Multi-agent briefing
@@ -95,12 +95,20 @@ function ImpactBlock({ title, items }: { title: string; items: string[] }) {
 
 function AgentChip({ brief }: { brief: AgentBrief }) {
   const status = brief.sources[0]?.status ?? "estimate";
+  const tallies = brief.metrics?.tallies as
+    | { fail?: number; warn?: number }
+    | undefined;
+  const hot =
+    brief.agent_id === "compliance" &&
+    ((tallies?.fail ?? 0) > 0 || (tallies?.warn ?? 0) > 0);
+
   return (
     <details className="group max-w-full rounded border border-white/10 bg-black/20 px-2 py-1">
       <summary className="cursor-pointer list-none text-[11px] font-medium text-white/90">
         {brief.title}
         <span className="ml-1.5 text-[9px] uppercase text-white/45">
           {status} · {Math.round(brief.confidence * 100)}%
+          {hot ? " · review" : ""}
         </span>
       </summary>
       <ul className="mt-1 space-y-0.5 border-t border-white/10 pt-1 text-[10px] leading-snug text-white/70">
