@@ -46,7 +46,7 @@ export function Landing({ onGetStarted, busy = false }: LandingProps) {
         </div>
       )}
 
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 py-10 text-center">
+      <div className="relative z-10 flex flex-1 min-h-0 flex-col items-center justify-center px-6 py-10 text-center">
         <div className="landing-copy flex max-w-2xl flex-col items-center">
           <div className="flex items-center justify-center gap-4">
             <HexLogo />
