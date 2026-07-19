@@ -9,7 +9,7 @@ Built at Hack the 6ix 2026.
 ## Stack
 
 - `web/` Next.js (App Router, TypeScript, Tailwind), MapLibre GL satellite assembler
-- `api/` FastAPI (Python 3.11)
+- `api/` FastAPI (Python 3.11+)
 - `model/` benchmark library and deterministic stress-test engine, pytest-covered
 
 ## Run it
@@ -40,7 +40,9 @@ APP_BASE_URL=http://localhost:3000
 
 ![Demo](web/public/demo.gif)
 
-Assemble the building component by component (foundation, structure, floors, facade, energy systems) on the City of Toronto's 8 cm aerial imagery, toggle concrete + central HVAC against mass timber + heat pumps, stress-test a fully booked heat-wave weekend (36.2 C, the documented July 14, 2026 Toronto event), and read the memo. A physics and structure log narrates each configuration choice. For the 40-room boutique the flip to Option B costs $159 per tonne of CO2e avoided over the RICS 60-year life, under Canada's $170 federal 2030 benchmark; for a 6-room homestay the same swap fails the bar at $358 per tonne and the memo honestly recommends Option A. That flip is enforced by a pytest.
+What the capture shows, in order: enter from the landing page, land on the default site (45 The Esplanade on the City of Toronto's 8 cm aerial imagery, with neighbouring buildings extruded at their real OSM heights and live site climate from Open-Meteo), pick from real empty parcels found live on OpenStreetMap (surface parking, brownfield, construction; each cleared against building footprints by polygon intersection), assemble the building component by component (foundation, structure, floors, facade, energy systems) while the physics and structure log narrates each choice, toggle Option A (concrete + central HVAC) against Option B (mass timber + heat pumps), run the year stress (five named extreme weekends in parallel, including the documented 36.2 C July 14, 2026 Toronto heat event), and read the portfolio memo.
+
+The honest numbers under it: for the 40-room boutique, the flip to Option B costs $159 per tonne of CO2e avoided over the RICS 60-year life, under Canada's $170 federal 2030 benchmark; for a 6-room homestay the same swap fails the bar at $358 per tonne and the memo recommends Option A. That flip is enforced by a pytest.
 
 ## Real vs Simulated ledger
 
@@ -49,7 +51,9 @@ Honesty first: this table says exactly what is real and what is a labelled simul
 | Piece | Status |
 | --- | --- |
 | Benchmark constants (52: energy intensity, rates, carbon factors, costs) | Real published values (CBECS 2018 tables, Toronto Hydro and Enbridge 2026 rate schedules, TAF emissions guidance, Altus 2025 cost guide, RICS WLCA); every constant in `model/innsight_model/benchmarks.py` carries a source URL or an ESTIMATE flag with its derivation |
-| Stress-test engine | Real deterministic model on those constants; 14 pytest including determinism and the homestay/hotel recommendation flip |
+| Stress-test engine | Real deterministic model on those constants; 25 pytest including determinism and the homestay/hotel recommendation flip |
+| Empty-parcel finder | Live OSM Overpass (surface parking, brownfield, construction, vacant) with real polygon building-exclusion; fallbacks: session cache, then parcels traced from the 2025 orthophoto, then labelled approximate pads |
+| 3D context buildings | Neighbouring OSM footprints extruded at tagged heights (`height` / `building:levels`); decorative, hidden when data is unavailable |
 | Hourly load curves | Generated from published load-profile behaviour; in-app validation overlay against a metered hotel study (Placet et al. 2010) |
 | Stay22 market pulse | Real live demo-mode API calls at the selected parcel lat/lng, forward dates, no listing storage; cache fallback disclosed in-UI |
 | Electricity Maps carbon | Live zone intensity when `ELECTRICITYMAPS_API_KEY` is set (lat/lon then CA-ON fallback); else TAF Ontario benchmarks |
