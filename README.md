@@ -23,7 +23,18 @@ python3.11 -m venv .venv && .venv/bin/pip install -r api/requirements.txt
 cd web && npm install && npm run dev
 ```
 
-Put secrets in a single repo-root `.env` file (never commit it). Every integration is feature-flagged; the core loop runs with no keys at all.
+Put secrets in a **single repo-root `.env`** (never commit it). Do not use `web/.env.local` or `api/.env` — both the Next.js app (`web/next.config.ts`) and FastAPI (`api/main.py`) load only that file. Every integration is feature-flagged; the core loop runs with no keys at all.
+
+Auth0 example keys in that same file:
+
+```env
+NEXT_PUBLIC_FLAG_AUTH0=true
+AUTH0_DOMAIN=...
+AUTH0_CLIENT_ID=...
+AUTH0_CLIENT_SECRET=...
+AUTH0_SECRET=...
+APP_BASE_URL=http://localhost:3000
+```
 
 ## Demo
 

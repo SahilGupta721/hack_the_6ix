@@ -4,12 +4,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load env before any app modules read os.environ.
-# Repo-root first, then api/.env so local API secrets win.
+# Single source of truth: repo-root `.env` only (no api/.env or web/.env.local).
 _API_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _API_DIR.parent
 load_dotenv(_REPO_ROOT / ".env")
-load_dotenv(_API_DIR / ".env", override=True)
 
 # Make `import app...` reliable when cwd is not api/.
 import sys

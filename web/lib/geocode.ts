@@ -13,6 +13,25 @@ export interface GeocodeResult {
 const clientCache = new Map<string, { at: number; hits: GeocodeResult[] }>();
 const CLIENT_TTL_MS = 10 * 60 * 1000;
 
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  const onAbort = () => {
+    clearTimeout(timer);
+    controller.abort();
+  };
+  signal?.addEventListener("abort", onAbort);
+  controller.signal.addEventListener(
+    "abort",
+    () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+    },
+    { once: true },
+  );
+  return controller.signal;
+}
+
 export async function searchPlaces(
   query: string,
   signal?: AbortSignal,
@@ -27,7 +46,9 @@ export async function searchPlaces(
   }
 
   const params = new URLSearchParams({ q });
-  const res = await fetch(`${API_BASE}/geocode?${params}`, { signal });
+  const res = await fetch(`${API_BASE}/geocode?${params}`, {
+    signal: withTimeout(signal, 8000),
+  });
   if (!res.ok) throw new Error(`geocode failed: ${res.status}`);
   const hits = (await res.json()) as GeocodeResult[];
   clientCache.set(key, { at: Date.now(), hits });
@@ -43,7 +64,9 @@ export async function fetchAreaBrief(
     lat: String(lat),
     lng: String(lng),
   });
-  const res = await fetch(`${API_BASE}/area/brief?${params}`, { signal });
+  const res = await fetch(`${API_BASE}/area/brief?${params}`, {
+    signal: withTimeout(signal, 10000),
+  });
   if (!res.ok) throw new Error(`area brief failed: ${res.status}`);
   return (await res.json()) as AreaBrief;
 }
